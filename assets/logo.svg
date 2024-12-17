@@ -1,0 +1,57 @@
+<svg width="300" height="300" viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Background Gradient -->
+    <linearGradient id="bgGradient" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0.0" stop-color="#f4acc8"/> 
+      <stop offset="1.0" stop-color="#7d2a7d"/>
+    </linearGradient>
+
+    <!-- Light gradient for 'e' and inner shapes -->
+    <linearGradient id="lightGradient" x1="0.5" y1="0" x2="0.5" y2="1">
+      <stop offset="0.0" stop-color="#ffffff"/>
+      <stop offset="1.0" stop-color="#f5e1ef"/>
+    </linearGradient>
+
+    <!-- Heart Gradient -->
+    <radialGradient id="heartGradient" cx="0.5" cy="0.4" r="0.7">
+      <stop offset="0.0" stop-color="#ffcad8"/>
+      <stop offset="1.0" stop-color="#f48bab"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Background Circle -->
+  <circle cx="150" cy="150" r="140" fill="url(#bgGradient)" />
+
+  <!-- Inner Ring -->
+  <circle cx="150" cy="150" r="80" fill="none" stroke="#ffffff" stroke-opacity="0.3" stroke-width="12" />
+  <circle cx="150" cy="150" r="60" fill="none" stroke="#ffffff" stroke-opacity="0.3" stroke-width="8" />
+
+  <!-- Partial arcs to simulate the reference image's detail -->
+  <path d="M190 150a40 40 0 0 0 -80 0" fill="none" stroke="#ffffff" stroke-width="5" stroke-linecap="round"/>
+  <path d="M110 150a40 40 0 0 0 80 0" fill="none" stroke="#ffffff" stroke-width="5" stroke-linecap="round" opacity="0.5"/>
+
+  <!-- Stylized 'e' shape at center -->
+  <!-- This is a simplified path for the "e". Feel free to refine to get a more elegant shape. -->
+  <path d="
+    M135,150
+    c0-20,15-35,35-35h15
+    c2.5,0,4.5,2,4.5,4.5s-2,4.5-4.5,4.5h-15
+    c-14,0-25,11-25,25s11,25,25,25h20
+    c2.5,0,4.5,2,4.5,4.5s-2,4.5-4.5,4.5h-20
+    c-20,0-35-15-35-35z"
+    fill="url(#lightGradient)" />
+
+  <!-- Heart inside the 'e' -->
+  <path d="
+    M152,147
+    c-3,-3 -9,-1 -9,3
+    c0,4 4,6 9,10
+    c5,-4 9,-6 9,-10
+    c0,-4 -6,-6 -9,-3z"
+    fill="url(#heartGradient)" />
+
+  <!-- Star inside the 'e' -->
+  <polygon points="170,150 172,154 177,155 173,158 174,163 170,161 166,163 167,158 163,155 168,154"
+           fill="#ffffff" />
+
+</svg>

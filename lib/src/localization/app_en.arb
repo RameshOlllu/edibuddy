@@ -1,0 +1,14 @@
+{
+  "@@locale": "en",
+  "appTitle": "edibuddy",
+  "signInTitle": "Sign In",
+  "welcomeMessage": "Welcome to edibuddy",
+  "emailLabel": "Email",
+  "emailRequired": "Email is required",
+  "passwordLabel": "Password",
+  "passwordRequired": "Password is required",
+  "signInButton": "Sign In",
+  "signInWithGoogle": "Sign in with Google",
+  "signInWithInstagram": "Sign in with Instagram",
+  "signUpPrompt": "Don't have an account? Sign Up"
+}
