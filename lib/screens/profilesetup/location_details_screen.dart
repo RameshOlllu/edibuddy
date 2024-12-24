@@ -1,16 +1,13 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:lottie/lottie.dart';
 import 'package:shimmer/shimmer.dart';
 
 import 'location_search_sheet.dart';
 
-
-class LocationDetailsScreen extends ConsumerStatefulWidget {
+class LocationDetailsScreen extends StatefulWidget {
   final String userId;
   final VoidCallback onNext;
   final VoidCallback onPrevious;
@@ -23,10 +20,10 @@ class LocationDetailsScreen extends ConsumerStatefulWidget {
   }) : super(key: key);
 
   @override
-  ConsumerState<LocationDetailsScreen> createState() => _LocationDetailsScreenState();
+  State<LocationDetailsScreen> createState() => _LocationDetailsScreenState();
 }
 
-class _LocationDetailsScreenState extends ConsumerState<LocationDetailsScreen> {
+class _LocationDetailsScreenState extends State<LocationDetailsScreen> {
   Map<String, dynamic>? currentLocation;
   List<Map<String, dynamic>> preferredCities = [];
   bool isLoading = true;
@@ -40,7 +37,7 @@ class _LocationDetailsScreenState extends ConsumerState<LocationDetailsScreen> {
 
   Future<void> _initialize() async {
     await _checkPermissions();
-    await _fetchData();
+    _fetchData();
   }
 
   Future<void> _checkPermissions() async {
@@ -51,52 +48,6 @@ class _LocationDetailsScreenState extends ConsumerState<LocationDetailsScreen> {
     if (!locationPermissionGranted) {
       _showPermissionDialog();
     }
-  }
-
-  Future<void> _showPermissionDialog() async {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          children: [
-            Icon(Icons.location_on, color: Theme.of(context).colorScheme.primary),
-            const SizedBox(width: 8),
-            const Text('Location Access Required'),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Lottie.asset(
-              'assets/animations/location-permission.json',
-              height: 150,
-              repeat: true,
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'This app needs location access to detect your current location.',
-              style: TextStyle(fontSize: 16),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          FilledButton.icon(
-            onPressed: () async {
-              Navigator.pop(context);
-              await openAppSettings();
-            },
-            icon: const Icon(Icons.settings),
-            label: const Text('Open Settings'),
-          ),
-        ],
-      ),
-    );
   }
 
   Future<void> _fetchData() async {
@@ -112,16 +63,12 @@ class _LocationDetailsScreenState extends ConsumerState<LocationDetailsScreen> {
           currentLocation = locationData['currentLocation'];
           preferredCities = List<Map<String, dynamic>>.from(
               locationData['preferredCities'] ?? []);
-          isLoading = false;
-        });
-      } else {
-        setState(() {
-          isLoading = false;
         });
       }
     } catch (e) {
+      _showErrorSnackBar('Failed to load location details.');
+    } finally {
       setState(() => isLoading = false);
-      _showErrorSnackBar('Failed to load location details');
     }
   }
 
@@ -172,7 +119,7 @@ class _LocationDetailsScreenState extends ConsumerState<LocationDetailsScreen> {
         });
       }
     } catch (e) {
-      _showErrorSnackBar('Unable to detect location');
+      _showErrorSnackBar('Unable to detect location.');
     } finally {
       setState(() => isLoading = false);
     }
@@ -180,7 +127,7 @@ class _LocationDetailsScreenState extends ConsumerState<LocationDetailsScreen> {
 
   Future<void> _showLocationSearch() async {
     if (preferredCities.length >= 3) {
-      _showErrorSnackBar('Maximum 3 preferred cities allowed');
+      _showErrorSnackBar('Maximum 3 preferred cities allowed.');
       return;
     }
 
@@ -188,19 +135,17 @@ class _LocationDetailsScreenState extends ConsumerState<LocationDetailsScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) =>  LocationSearchScreen(),
+      builder: (context) => const LocationSearchScreen(),
     );
 
     if (result != null) {
-      setState(() {
-        preferredCities.add(result);
-      });
+      setState(() => preferredCities.add(result));
     }
   }
 
   Future<void> _saveAndNext() async {
     if (currentLocation == null) {
-      _showErrorSnackBar('Please select your current location');
+      _showErrorSnackBar('Please select your current location.');
       return;
     }
 
@@ -214,136 +159,230 @@ class _LocationDetailsScreenState extends ConsumerState<LocationDetailsScreen> {
           'currentLocation': currentLocation,
           'preferredCities': preferredCities,
         },
+          'badges.locationdetails': {
+          'earned': true,
+          'earnedAt': FieldValue.serverTimestamp(),
+        },
         'lastUpdated': FieldValue.serverTimestamp(),
       });
-      
+
       if (mounted) {
         widget.onNext();
       }
     } catch (e) {
-      _showErrorSnackBar('Failed to save location details');
+      _showErrorSnackBar('Failed to save location details.');
     } finally {
       setState(() => isLoading = false);
     }
   }
 
+  void _showPermissionDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(Icons.location_on, color: Theme.of(context).colorScheme.primary),
+            const SizedBox(width: 8),
+            const Text('Location Access Required'),
+          ],
+        ),
+        content: const Text(
+          'This app needs location access to detect your current location for job suggestions and recruiter recommendations.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton.icon(
+            onPressed: () async {
+              Navigator.pop(context);
+              await openAppSettings();
+            },
+            icon: const Icon(Icons.settings),
+            label: const Text('Open Settings'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Location Details'),
-        centerTitle: true,
-      ),
+   
       body: Stack(
         children: [
           CustomScrollView(
             slivers: [
               SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildSectionTitle('Current Location'),
-                      const SizedBox(height: 8),
-                      if (isLoading)
-                        _buildShimmerLoading()
-                      else if (currentLocation != null)
-                        _buildLocationCard(
-                          currentLocation!,
-                          onAction: _detectCurrentLocation,
-                          actionIcon: Icons.refresh,
-                        )
-                      else
-                        _buildEmptyLocationCard(),
-                      const SizedBox(height: 24),
-                      _buildSectionTitle('Preferred Cities'),
-                      const SizedBox(height: 8),
-                      ...preferredCities.asMap().entries.map(
-                            (entry) => _buildLocationCard(
-                              entry.value,
-                              onDelete: () {
-                                setState(() {
-                                  preferredCities.removeAt(entry.key);
-                                });
-                              },
-                            ),
-                          ),
-                      if (preferredCities.isEmpty) _buildEmptyPreferredCities(),
-                      if (preferredCities.length < 3)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          child: FilledButton.icon(
-                            onPressed: _showLocationSearch,
-                            icon: const Icon(Icons.add_location),
-                            label: const Text('Add Preferred City'),
-                            style: FilledButton.styleFrom(
-                              minimumSize: const Size(double.infinity, 48),
-                            ),
-                          ),
-                        ),
-                      const SizedBox(height: 80), // Space for bottom buttons
-                    ],
-                  ),
+                child: Column(
+                  children: [
+                    _buildBannerInfo(),
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildSectionTitle('Current Location'),
+                          const SizedBox(height: 8),
+                          if (isLoading)
+                            _buildShimmerLoading()
+                          else if (currentLocation != null)
+                            _buildLocationCard(
+                              currentLocation!,
+                              onAction: _detectCurrentLocation,
+                              actionIcon: Icons.refresh,
+                            )
+                          else
+                            _buildEmptyLocationCard(),
+                          const SizedBox(height: 24),
+                          _buildPreferredCities(),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: Container(
-              padding: EdgeInsets.only(
-                left: 16,
-                right: 16,
-                bottom: MediaQuery.of(context).padding.bottom + 16,
-                top: 16,
-              ),
-              decoration: BoxDecoration(
-                color: Theme.of(context).scaffoldBackgroundColor,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, -5),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: widget.onPrevious,
-                      child: const Text('Previous'),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: FilledButton(
-                      onPressed: isLoading ? null : _saveAndNext,
-                      child: isLoading
-                          ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Text('Next'),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          if (isLoading)
-            Container(
-              color: Colors.black26,
-              child: const Center(child: CircularProgressIndicator()),
-            ),
+          _buildBottomNavigationBar(),
         ],
       ),
     );
   }
+
+  Widget _buildBannerInfo() {
+    return 
+    
+      Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Card(
+              elevation: 6,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 30,
+                      backgroundColor: Theme.of(context).primaryColor.withOpacity(0.1),
+                      child: Icon(
+                        Icons.info_outline,
+                        size: 36,
+                        color: Theme.of(context).primaryColor,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: const [
+                          Text(
+                            "Locaiton Inforamtion",
+                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                          ),
+                          SizedBox(height: 8),
+                          Text(
+                            "Your location helps recruiters find you for better job suggestions and recommendations.",
+                            style: TextStyle(fontSize: 14, color: Colors.black54),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        
+        
+      
+  }
+
+Widget _buildPreferredCities() {
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      _buildSectionTitle('Preferred Cities'),
+      const SizedBox(height: 8),
+      if (preferredCities.isEmpty)
+        _buildEmptyPreferredCities()
+      else
+        Padding(
+          padding: EdgeInsets.only(bottom: (preferredCities.length==3?60:1),),
+          child: Column(
+            children: preferredCities.map((city) {
+              return _buildLocationCard(city, onDelete: () {
+                setState(() => preferredCities.remove(city));
+              });
+            }).toList(),
+          ),
+        ),
+      if (preferredCities.length < 3)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 16,top: 20), // Avoid overlap with navigation bar
+          child: SafeArea(
+            child: FilledButton.icon(
+              onPressed: _showLocationSearch,
+              icon: const Icon(Icons.add_location_alt),
+              label: const Text('Add Preferred City'),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size(double.infinity, 48),
+              ),
+            ),
+          ),
+        ),
+          if (preferredCities.length < 3)
+          SizedBox(height: 60,),
+    ],
+  );
+}
+
+Widget _buildEmptyPreferredCities() {
+  return Center(
+    child: Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.location_off,
+              size: 30,
+              color: Theme.of(context).colorScheme.primary.withOpacity(0.6),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'No Preferred Cities',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Add up to 3 preferred cities.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey[700],
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
 
   Widget _buildSectionTitle(String title) {
     return Text(
@@ -402,55 +441,93 @@ class _LocationDetailsScreenState extends ConsumerState<LocationDetailsScreen> {
     );
   }
 
-  Widget _buildEmptyLocationCard() {
-    return Card(
+Widget _buildEmptyLocationCard() {
+  return Center(
+    child: Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
       child: InkWell(
         onTap: _detectCurrentLocation,
+        borderRadius: BorderRadius.circular(12),
         child: Padding(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.all(10),
           child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
                 Icons.location_searching,
-                size: 48,
-                color: Theme.of(context).colorScheme.primary,
+                size: 30,
+                color: Theme.of(context).colorScheme.primary.withOpacity(0.8),
               ),
               const SizedBox(height: 16),
               const Text(
                 'Detect Current Location',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
               const SizedBox(height: 8),
               Text(
-                'Tap to get your current location',
-                style: TextStyle(color: Colors.grey[600]),
+                'Tap the button to fetch your current location and improve your job recommendations.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey[700],
+                ),
               ),
             ],
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
-  Widget _buildEmptyPreferredCities() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
+  Widget _buildBottomNavigationBar() {
+    return Positioned(
+      left: 0,
+      right: 0,
+      bottom: 0,
+      child: Container(
+        padding: EdgeInsets.only(
+          left: 16,
+          right: 16,
+          bottom: MediaQuery.of(context).padding.bottom + 16,
+          top: 16,
+        ),
+        decoration: BoxDecoration(
+          color: Theme.of(context).scaffoldBackgroundColor,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, -5),
+            ),
+          ],
+        ),
+        child: Row(
           children: [
-            Lottie.asset(
-              'assets/animations/empty-location.json',
-              height: 120,
+            Expanded(
+              child: OutlinedButton(
+                onPressed: widget.onPrevious,
+                child: const Text('Previous'),
+              ),
             ),
-            const SizedBox(height: 16),
-            const Text(
-              'No Preferred Cities',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Add up to 3 preferred cities',
-              style: TextStyle(color: Colors.grey[600]),
+            const SizedBox(width: 16),
+            Expanded(
+              child: FilledButton(
+                onPressed: isLoading ? null : _saveAndNext,
+                child: isLoading
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Next'),
+              ),
             ),
           ],
         ),

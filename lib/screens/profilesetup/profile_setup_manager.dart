@@ -60,6 +60,7 @@ class _ProfileSetupManagerState extends State<ProfileSetupManager> {
 
   @override
   Widget build(BuildContext context) {
+    print('Ramesh received user id is ${widget.userId}');
     return Scaffold(
       appBar: AppBar(
         title: const Text('Complete Your Profile'),

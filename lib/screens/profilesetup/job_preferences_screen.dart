@@ -93,6 +93,10 @@ class _JobPreferencesScreenState extends State<JobPreferencesScreen> {
           'workplaces': preferredWorkplaces,
           'employmentTypes': preferredEmploymentTypes,
         },
+         'badges.jobpreferences': {
+          'earned': true,
+          'earnedAt': FieldValue.serverTimestamp(),
+        },
         'lastUpdated': FieldValue.serverTimestamp(),
       });
 

@@ -1,9 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
   <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-    <meta-data
-    android:name="com.google.android.geo.API_KEY"
-    android:value="AIzaSyAIDlD8wFTlUO7eO1vmJU3YXMNdif38b18" />
     <application
         android:label="edibuddy"
         android:name="${applicationName}"

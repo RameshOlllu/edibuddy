@@ -8,7 +8,8 @@ class BasicDetailsScreen extends StatefulWidget {
   final String userId;
   final VoidCallback onNext;
 
-  const BasicDetailsScreen({Key? key, required this.userId, required this.onNext})
+  const BasicDetailsScreen(
+      {Key? key, required this.userId, required this.onNext})
       : super(key: key);
 
   @override
@@ -30,11 +31,13 @@ class _BasicDetailsScreenState extends State<BasicDetailsScreen> {
   }
 
   Future<void> _fetchData() async {
+    print('Ramesh received user id in basicDetails is ${widget.userId}');
     try {
       final userData = await _firebaseService.getUser(widget.userId);
 
       if (userData != null && userData['basicDetails'] != null) {
-        final fetchedDetails = Map<String, dynamic>.from(userData['basicDetails']);
+        final fetchedDetails =
+            Map<String, dynamic>.from(userData['basicDetails']);
         if (fetchedDetails['dob'] is Timestamp) {
           fetchedDetails['dob'] = (fetchedDetails['dob'] as Timestamp).toDate();
         }
@@ -50,12 +53,20 @@ class _BasicDetailsScreenState extends State<BasicDetailsScreen> {
   }
 
   Future<void> _saveAndNext() async {
-    if (isButtonDisabled || !(_formKey.currentState?.saveAndValidate() ?? false)) return;
+    if (isButtonDisabled ||
+        !(_formKey.currentState?.saveAndValidate() ?? false)) return;
 
     setState(() => isButtonDisabled = true);
 
     try {
-      await _firebaseService.updateUser(widget.userId, {'basicDetails': _formKey.currentState!.value});
+      await _firebaseService.updateUser(widget.userId, {
+        'basicDetails': _formKey.currentState!.value,
+        'badges.basicdetails': {
+          'earned': true,
+          'earnedAt': FieldValue.serverTimestamp(),
+        },
+        'lastUpdated': FieldValue.serverTimestamp(),
+      });
       widget.onNext();
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -80,14 +91,16 @@ class _BasicDetailsScreenState extends State<BasicDetailsScreen> {
             padding: const EdgeInsets.all(16.0),
             child: Card(
               elevation: 6,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Row(
                   children: [
                     CircleAvatar(
                       radius: 30,
-                      backgroundColor: Theme.of(context).primaryColor.withOpacity(0.1),
+                      backgroundColor:
+                          Theme.of(context).primaryColor.withOpacity(0.1),
                       child: Icon(
                         Icons.info_outline,
                         size: 36,
@@ -101,12 +114,14 @@ class _BasicDetailsScreenState extends State<BasicDetailsScreen> {
                         children: const [
                           Text(
                             "Your Basic Information",
-                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                            style: TextStyle(
+                                fontSize: 18, fontWeight: FontWeight.bold),
                           ),
                           SizedBox(height: 8),
                           Text(
                             "This helps recruiters understand you better. Fill in the details carefully.",
-                            style: TextStyle(fontSize: 14, color: Colors.black54),
+                            style:
+                                TextStyle(fontSize: 14, color: Colors.black54),
                           ),
                         ],
                       ),
@@ -131,7 +146,8 @@ class _BasicDetailsScreenState extends State<BasicDetailsScreen> {
                       decoration: InputDecoration(
                         labelText: 'Full Name',
                         prefixIcon: const Icon(Icons.person),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12)),
                       ),
                       validator: FormBuilderValidators.required(),
                     ),
@@ -143,7 +159,8 @@ class _BasicDetailsScreenState extends State<BasicDetailsScreen> {
                       decoration: InputDecoration(
                         labelText: 'Date of Birth',
                         prefixIcon: const Icon(Icons.calendar_today),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12)),
                       ),
                       validator: FormBuilderValidators.required(),
                     ),
@@ -154,7 +171,8 @@ class _BasicDetailsScreenState extends State<BasicDetailsScreen> {
                       decoration: InputDecoration(
                         labelText: 'Gender',
                         prefixIcon: const Icon(Icons.transgender),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12)),
                       ),
                       items: ['Male', 'Female', 'Other']
                           .map((gender) => DropdownMenuItem(
@@ -171,7 +189,8 @@ class _BasicDetailsScreenState extends State<BasicDetailsScreen> {
                       decoration: InputDecoration(
                         labelText: 'Email',
                         prefixIcon: const Icon(Icons.email),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12)),
                       ),
                       keyboardType: TextInputType.emailAddress,
                       validator: FormBuilderValidators.compose([

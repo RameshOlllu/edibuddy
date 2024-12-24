@@ -1,124 +1,46 @@
-// lib/sign_in_page.dart
-
 import 'package:flutter/material.dart';
-import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-// Import Firestore if you need to use it
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../screens/profilesetup/profile_setup_manager.dart';
 import 'homepage.dart';
-// Removed unnecessary import
-// import 'homepage.dart'; // Not needed as AuthWrapper handles navigation
 
 class SignInPage extends StatefulWidget {
   const SignInPage({Key? key}) : super(key: key);
 
   @override
-  _SignInPageState createState() => _SignInPageState();
+  State<SignInPage> createState() => _SignInPageState();
 }
 
 class _SignInPageState extends State<SignInPage> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-String? loggedInUserId;
-  bool _isLoading = false; // To show a loading indicator
+  String? loggedInUserId;
+  bool _isLoading = false;
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(AppLocalizations.of(context)!.signInTitle),
-      ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
+          : Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0),
                 child: Form(
                   key: _formKey,
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
+                      _buildWelcomeBanner(context),
+                      const SizedBox(height: 32),
+                      _buildSignInForm(),
                       const SizedBox(height: 24),
-                      Text(
-                        AppLocalizations.of(context)!.welcomeMessage,
-                        style: textTheme.headlineMedium,
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 24),
-                      TextFormField(
-                        controller: _emailController,
-                        decoration: InputDecoration(
-                          labelText: AppLocalizations.of(context)!.emailLabel,
-                          border: const OutlineInputBorder(),
-                        ),
-                        keyboardType: TextInputType.emailAddress,
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return AppLocalizations.of(context)!.emailRequired;
-                          }
-                          if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(value)) {
-                            return 'Enter a valid email';
-                          }
-                          return null;
-                        },
-                      ),
+                      _buildSignInButtons(context, colorScheme),
                       const SizedBox(height: 16),
-                      TextFormField(
-                        controller: _passwordController,
-                        decoration: InputDecoration(
-                          labelText: AppLocalizations.of(context)!.passwordLabel,
-                          border: const OutlineInputBorder(),
-                        ),
-                        obscureText: true,
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return AppLocalizations.of(context)!.passwordRequired;
-                          }
-                          if (value.length < 6) {
-                            return 'Password should be at least 6 characters';
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 24),
-                      ElevatedButton(
-                        onPressed: _signInWithEmail,
-                        child: Text(AppLocalizations.of(context)!.signInButton),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: colorScheme.primary,
-                          foregroundColor: colorScheme.onPrimary,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      OutlinedButton(
-                        onPressed: _signInWithGoogle,
-                        child: Text(AppLocalizations.of(context)!.signInWithGoogle),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: colorScheme.primary,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      OutlinedButton(
-                        onPressed: _signInWithInstagram,
-                        child: Text(AppLocalizations.of(context)!.signInWithInstagram),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: colorScheme.primary,
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      TextButton(
-                        onPressed: _navigateToSignUp,
-                        child: Text(AppLocalizations.of(context)!.signUpPrompt),
-                        style: TextButton.styleFrom(
-                          foregroundColor: colorScheme.primary,
-                        ),
-                      ),
+                      _buildSignUpPrompt(colorScheme),
                     ],
                   ),
                 ),
@@ -127,7 +49,127 @@ String? loggedInUserId;
     );
   }
 
-  // Sign in with Email and Password
+  Widget _buildWelcomeBanner(BuildContext context) {
+    return Column(
+      children: [
+        Text(
+          'Welcome Back!',
+          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Sign in to continue',
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Colors.grey,
+              ),
+          textAlign: TextAlign.center,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSignInForm() {
+    return Column(
+      children: [
+        TextFormField(
+          controller: _emailController,
+          decoration: InputDecoration(
+            labelText: 'Email',
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            prefixIcon: const Icon(Icons.email),
+          ),
+          keyboardType: TextInputType.emailAddress,
+          validator: (value) {
+            if (value == null || value.isEmpty) {
+              return 'Please enter your email.';
+            }
+            if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(value)) {
+              return 'Enter a valid email.';
+            }
+            return null;
+          },
+        ),
+        const SizedBox(height: 16),
+        TextFormField(
+          controller: _passwordController,
+          decoration: InputDecoration(
+            labelText: 'Password',
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            prefixIcon: const Icon(Icons.lock),
+          ),
+          obscureText: true,
+          validator: (value) {
+            if (value == null || value.isEmpty) {
+              return 'Please enter your password.';
+            }
+            if (value.length < 6) {
+              return 'Password should be at least 6 characters.';
+            }
+            return null;
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSignInButtons(BuildContext context, ColorScheme colorScheme) {
+    return Column(
+      children: [
+        ElevatedButton.icon(
+          onPressed: _signInWithEmail,
+          icon: const Icon(Icons.email),
+          label: const Text('Sign in with Email'),
+          style: ElevatedButton.styleFrom(
+            minimumSize: const Size(double.infinity, 48),
+            backgroundColor: colorScheme.primary,
+            foregroundColor: colorScheme.onPrimary,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        ElevatedButton.icon(
+          onPressed: _signInWithGoogle,
+          icon: Image.asset(
+            'assets/icons/google.png', // Ensure you have this asset
+            height: 24,
+            width: 24,
+          ),
+          label: const Text('Sign in with Google'),
+          style: ElevatedButton.styleFrom(
+            minimumSize: const Size(double.infinity, 48),
+            backgroundColor: Colors.white,
+            foregroundColor: Colors.black54,
+            side: const BorderSide(color: Colors.grey),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            textStyle: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSignUpPrompt(ColorScheme colorScheme) {
+    return TextButton(
+      onPressed: _navigateToSignUp,
+      child: const Text('Don’t have an account? Sign up here.'),
+      style: TextButton.styleFrom(
+        foregroundColor: colorScheme.primary,
+      ),
+    );
+  }
+
   Future<void> _signInWithEmail() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -142,32 +184,13 @@ String? loggedInUserId;
         password: _passwordController.text.trim(),
       );
 
-      // Successful sign-in
-      print('Signed in as: ${userCredential.user?.email}');
-
-      // No need to navigate manually; AuthWrapper handles it
-    } on FirebaseAuthException catch (e) {
-      String message;
-      switch (e.code) {
-        case 'invalid-email':
-          message = 'The email address is not valid.';
-          break;
-        case 'user-disabled':
-          message = 'This user has been disabled.';
-          break;
-        case 'user-not-found':
-          message = 'No user found for this email.';
-          break;
-        case 'wrong-password':
-          message = 'Incorrect password.';
-          break;
-        default:
-          message = 'An error occurred. Please try again.';
+      final user = userCredential.user;
+      if (user != null) {
+        loggedInUserId = user.uid;
+        await _handleUserNavigation(user.uid);
       }
-
-      _showErrorDialog(message);
     } catch (e) {
-      _showErrorDialog('An unexpected error occurred.');
+      _showErrorDialog('Sign-in failed. Please try again.');
     } finally {
       setState(() {
         _isLoading = false;
@@ -175,49 +198,57 @@ String? loggedInUserId;
     }
   }
 
-  // Sign in with Google
 Future<void> _signInWithGoogle() async {
+  if (!mounted) return; // Early return if the widget is not mounted
+
   setState(() {
     _isLoading = true;
   });
 
   try {
-    final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
-    if (googleUser == null) return;
+    final googleUser = await GoogleSignIn().signIn();
+    if (googleUser == null) return; // User canceled the sign-in process
 
-    final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
-
-    final OAuthCredential credential = GoogleAuthProvider.credential(
+    final googleAuth = await googleUser.authentication;
+    final credential = GoogleAuthProvider.credential(
       accessToken: googleAuth.accessToken,
       idToken: googleAuth.idToken,
     );
 
-    UserCredential userCredential =
+    final userCredential =
         await FirebaseAuth.instance.signInWithCredential(credential);
 
     final user = userCredential.user;
-    if (user == null) return;
+    if (user != null) {
+      loggedInUserId = user.uid;
 
-loggedInUserId = user.uid;
-    // Save user to Firestore
-    await _saveUserToFirestore(user);
+      // Check if the user document exists in Firestore
+      final userDoc = FirebaseFirestore.instance.collection('users').doc(user.uid);
+      final docSnapshot = await userDoc.get();
 
-    // Check profile status
-    final userDoc = FirebaseFirestore.instance.collection('users').doc(user.uid);
-    final docSnapshot = await userDoc.get();
-    debugPrint("Ramesh is doc exists ${docSnapshot.exists}");
+      if (!docSnapshot.exists) {
+        // Create a new document with `basicDetails`
+        await userDoc.set({
+          'uid': user.uid,
+          'createdAt': FieldValue.serverTimestamp(),
+          'profileComplete': false,
+          'photoURL': user.photoURL ?? "",
+          'basicDetails': {
+            'fullName': user.displayName ?? 'N/A',
+            'email': user.email ?? 'N/A',
+            'dob': null, // Placeholder for DOB
+            'gender': null, // Placeholder for Gender
+          },
+        });
+      }
 
-    // Navigation logic - no mounted check needed here
-    if (docSnapshot.exists && docSnapshot['profileComplete'] == false) {
-      debugPrint("Ramesh doc exists");
-      _navigateToProfileSetup();
-    } else {
-      debugPrint("Ramesh doc not exists");
-      _navigateToHome();
+      if (mounted) {
+        await _handleUserNavigation(user.uid);
+      }
     }
   } catch (e) {
     if (mounted) {
-      _showErrorDialog('An error occurred during sign-in.');
+      _showErrorDialog('Google sign-in failed. Please try again.');
     }
   } finally {
     if (mounted) {
@@ -228,70 +259,39 @@ loggedInUserId = user.uid;
   }
 }
 
-void _navigateToProfileSetup() {
-  Future.microtask(() {
-    if (mounted) {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) =>  ProfileSetupManager(userId: loggedInUserId!)),
-      );
+  Future<void> _handleUserNavigation(String userId) async {
+    final userDoc = FirebaseFirestore.instance.collection('users').doc(userId);
+    final docSnapshot = await userDoc.get();
+
+    if (docSnapshot.exists && docSnapshot['profileComplete'] == false) {
+      _navigateToProfileSetup();
+    } else {
+      _navigateToHome();
     }
-  });
-}
-
-void _navigateToHome() {
-  Future.microtask(() {
-    if (mounted) {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => HomePage()),
-      );
-    }
-  });
-}
-
-
-  // (Optional) Save user data to Firestore
-Future<void> _saveUserToFirestore(User? user) async {
-  debugPrint('Ramesh calling _saveUserToFirestore start ');
-  if (user == null) return;
-
-  final userDoc = FirebaseFirestore.instance.collection('users').doc(user.uid);
-
-  final docSnapshot = await userDoc.get();
-
-  if (!docSnapshot.exists) {
-    await userDoc.set({
-      'uid': user.uid,
-      'email': user.email,
-      'displayName': user.displayName,
-      'photoURL': user.photoURL,
-      'createdAt': FieldValue.serverTimestamp(),
-      'profileComplete': false, // Add the profileComplete flag
-    });
-  }
-}
-
-  // Instagram Sign-In (Not natively supported by Firebase)
-  void _signInWithInstagram() {
-    // Implement Instagram sign-in using a custom OAuth flow or third-party package
-    // Firebase Authentication does not support Instagram out of the box
-    // Alternatively, use a server-side function to handle Instagram OAuth and provide a custom token to Firebase
-    _showErrorDialog('Instagram sign-in is not supported yet.');
   }
 
-  // Navigate to Sign-Up Page
+  void _navigateToProfileSetup() {
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (_) => ProfileSetupManager(userId: loggedInUserId!),
+      ),
+    );
+  }
+
+  void _navigateToHome() {
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (_) => const HomePage(),
+      ),
+    );
+  }
+
   void _navigateToSignUp() {
-    // Implement navigation to SignUpPage if available
-    // For example:
-    // Navigator.push(
-    //   context,
-    //   MaterialPageRoute(builder: (_) => const SignUpPage()),
-    // );
     _showErrorDialog('Sign-Up page is not implemented yet.');
   }
 
-  // Show Error Dialog
   void _showErrorDialog(String message) {
-    showDialog<void>(
+    showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Error'),

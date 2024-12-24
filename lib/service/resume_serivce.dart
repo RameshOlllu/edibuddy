@@ -60,4 +60,16 @@ class ResumeService {
       rethrow;
     }
   }
+
+   Future<void> updateUserProfileStatus(String userId, bool status) async {
+    try {
+      // Update the user's profileComplete status
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .update({'profileComplete': status});
+    } catch (e) {
+      throw Exception("Failed to update profile status");
+    }
+  }
 }
