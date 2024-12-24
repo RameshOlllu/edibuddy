@@ -3,7 +3,7 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'auth_wrapper.dart'; // Ensure correct import path
-import 'package:flutter_svg/flutter_svg.dart'; // Import flutter_svg
+
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({Key? key}) : super(key: key);
@@ -33,7 +33,7 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   void _navigateToAuthWrapper() {
-    Timer(const Duration(seconds: 10), () {
+    Timer(const Duration(seconds: 1), () {
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (context) => const AuthWrapper()),
       );
@@ -59,11 +59,11 @@ class _SplashScreenState extends State<SplashScreen>
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               // App Logo using SVG
-              SvgPicture.asset(
-                'assets/logo.svg', // Ensure the SVG is in assets
-                width: 150,
-                height: 150,
-              ),
+              // SvgPicture.asset(
+              //   'assets/logo.svg', // Ensure the SVG is in assets
+              //   width: 150,
+              //   height: 150,
+              // ),
               const SizedBox(height: 24),
               // App Name
               Text(

@@ -6,6 +6,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 // Import Firestore if you need to use it
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../screens/profilesetup/profile_setup_manager.dart';
+import 'homepage.dart';
 // Removed unnecessary import
 // import 'homepage.dart'; // Not needed as AuthWrapper handles navigation
 
@@ -20,7 +22,7 @@ class _SignInPageState extends State<SignInPage> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-
+String? loggedInUserId;
   bool _isLoading = false; // To show a loading indicator
 
   @override
@@ -174,68 +176,99 @@ class _SignInPageState extends State<SignInPage> {
   }
 
   // Sign in with Google
-  Future<void> _signInWithGoogle() async {
-    setState(() {
-      _isLoading = true;
-    });
+Future<void> _signInWithGoogle() async {
+  setState(() {
+    _isLoading = true;
+  });
 
-    try {
-      final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
+  try {
+    final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
+    if (googleUser == null) return;
 
-      if (googleUser == null) {
-        // The user canceled the sign-in
-        setState(() {
-          _isLoading = false;
-        });
-        return;
-      }
+    final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
 
-      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+    final OAuthCredential credential = GoogleAuthProvider.credential(
+      accessToken: googleAuth.accessToken,
+      idToken: googleAuth.idToken,
+    );
 
-      final OAuthCredential credential = GoogleAuthProvider.credential(
-        accessToken: googleAuth.accessToken,
-        idToken: googleAuth.idToken,
-      );
+    UserCredential userCredential =
+        await FirebaseAuth.instance.signInWithCredential(credential);
 
-      UserCredential userCredential = await FirebaseAuth.instance.signInWithCredential(credential);
+    final user = userCredential.user;
+    if (user == null) return;
 
-      // Successful sign-in
-      print('Signed in as: ${userCredential.user?.email}');
+loggedInUserId = user.uid;
+    // Save user to Firestore
+    await _saveUserToFirestore(user);
 
-      // Optionally, save user data to Firestore
-      await _saveUserToFirestore(userCredential.user);
-      
-      // No need to navigate manually; AuthWrapper handles it
-    } on FirebaseAuthException catch (e) {
-      _showErrorDialog('Failed to sign in with Google: ${e.message}');
-    } catch (e) {
-      _showErrorDialog('An unexpected error occurred.');
-    } finally {
+    // Check profile status
+    final userDoc = FirebaseFirestore.instance.collection('users').doc(user.uid);
+    final docSnapshot = await userDoc.get();
+    debugPrint("Ramesh is doc exists ${docSnapshot.exists}");
+
+    // Navigation logic - no mounted check needed here
+    if (docSnapshot.exists && docSnapshot['profileComplete'] == false) {
+      debugPrint("Ramesh doc exists");
+      _navigateToProfileSetup();
+    } else {
+      debugPrint("Ramesh doc not exists");
+      _navigateToHome();
+    }
+  } catch (e) {
+    if (mounted) {
+      _showErrorDialog('An error occurred during sign-in.');
+    }
+  } finally {
+    if (mounted) {
       setState(() {
         _isLoading = false;
       });
     }
   }
+}
+
+void _navigateToProfileSetup() {
+  Future.microtask(() {
+    if (mounted) {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) =>  ProfileSetupManager(userId: loggedInUserId!)),
+      );
+    }
+  });
+}
+
+void _navigateToHome() {
+  Future.microtask(() {
+    if (mounted) {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => HomePage()),
+      );
+    }
+  });
+}
+
 
   // (Optional) Save user data to Firestore
-  Future<void> _saveUserToFirestore(User? user) async {
-    if (user == null) return;
+Future<void> _saveUserToFirestore(User? user) async {
+  debugPrint('Ramesh calling _saveUserToFirestore start ');
+  if (user == null) return;
 
-    final userDoc = FirebaseFirestore.instance.collection('users').doc(user.uid);
+  final userDoc = FirebaseFirestore.instance.collection('users').doc(user.uid);
 
-    final docSnapshot = await userDoc.get();
+  final docSnapshot = await userDoc.get();
 
-    if (!docSnapshot.exists) {
-      await userDoc.set({
-        'uid': user.uid,
-        'email': user.email,
-        'displayName': user.displayName,
-        'photoURL': user.photoURL,
-        'createdAt': FieldValue.serverTimestamp(),
-        // Add more fields as necessary
-      });
-    }
+  if (!docSnapshot.exists) {
+    await userDoc.set({
+      'uid': user.uid,
+      'email': user.email,
+      'displayName': user.displayName,
+      'photoURL': user.photoURL,
+      'createdAt': FieldValue.serverTimestamp(),
+      'profileComplete': false, // Add the profileComplete flag
+    });
   }
+}
 
   // Instagram Sign-In (Not natively supported by Firebase)
   void _signInWithInstagram() {

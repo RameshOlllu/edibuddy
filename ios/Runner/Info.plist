@@ -47,5 +47,13 @@
 		<true/>
 		<key>UIStatusBarHidden</key>
 		<false/>
+		<key>NSLocationWhenInUseUsageDescription</key>
+		<string>We need your location to suggest relevant job opportunities near you.</string>
+		<key>NSLocationAlwaysUsageDescription</key>
+		<string>We need your location for better job recommendations.</string>
+		<key>UIBackgroundModes</key>
+		<array>
+  		<string>fetch</string>
+		</array>
 	</dict>
 </plist>
