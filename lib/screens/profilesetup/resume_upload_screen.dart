@@ -223,13 +223,12 @@ void _completeProfile() async {
                           child: ListTile(
                             leading: const Icon(Icons.description,
                                 size: 36, color: Colors.blue),
-                            title: Text(
-                              uploadedFileName ?? 'Resume',
+                            title: Text( 'Resume',
                               style:
                                   const TextStyle(fontWeight: FontWeight.bold),
                             ),
                             subtitle:
-                                const Text("Tap below to update or delete"),
+                                const Text("Ensure your resume is up-to-date to showcase your latest achievements and skills."),
                             trailing: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
