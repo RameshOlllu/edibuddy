@@ -9,7 +9,7 @@ import 'location_search_sheet.dart';
 
 class LocationDetailsScreen extends StatefulWidget {
   final String userId;
-  final VoidCallback onNext;
+  final void Function(bool isEarned) onNext;
   final VoidCallback onPrevious;
 
   const LocationDetailsScreen({
@@ -50,27 +50,36 @@ class _LocationDetailsScreenState extends State<LocationDetailsScreen> {
     }
   }
 
-  Future<void> _fetchData() async {
-    try {
-      final userDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(widget.userId)
-          .get();
+Future<void> _fetchData() async {
+  try {
+    final userDoc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(widget.userId)
+        .get();
 
-      if (userDoc.exists && userDoc.data()?['locationDetails'] != null) {
-        final locationData = userDoc.data()!['locationDetails'];
+    if (userDoc.exists && userDoc.data()?['locationDetails'] != null) {
+      final locationData = userDoc.data()!['locationDetails'];
+      if (mounted) {
         setState(() {
           currentLocation = locationData['currentLocation'];
           preferredCities = List<Map<String, dynamic>>.from(
               locationData['preferredCities'] ?? []);
         });
       }
-    } catch (e) {
+    }
+  } catch (e) {
+    if (mounted) {
       _showErrorSnackBar('Failed to load location details.');
-    } finally {
+    }
+  } finally {
+    if (mounted) {
       setState(() => isLoading = false);
     }
   }
+}
+
+
+  
 
   void _showErrorSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -167,7 +176,7 @@ class _LocationDetailsScreenState extends State<LocationDetailsScreen> {
       });
 
       if (mounted) {
-        widget.onNext();
+        widget.onNext(preferredCities.isNotEmpty);
       }
     } catch (e) {
       _showErrorSnackBar('Failed to save location details.');
@@ -176,39 +185,46 @@ class _LocationDetailsScreenState extends State<LocationDetailsScreen> {
     }
   }
 
-  void _showPermissionDialog() {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          children: [
-            Icon(Icons.location_on, color: Theme.of(context).colorScheme.primary),
-            const SizedBox(width: 8),
-            const Text('Location Access Required'),
-          ],
-        ),
-        content: const Text(
-          'This app needs location access to detect your current location for job suggestions and recruiter recommendations.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          FilledButton.icon(
-            onPressed: () async {
-              Navigator.pop(context);
-              await openAppSettings();
-            },
-            icon: const Icon(Icons.settings),
-            label: const Text('Open Settings'),
+ void _showPermissionDialog() {
+  final theme = Theme.of(context);
+  showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (context) => AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      title: Row(
+        children: [
+          Icon(Icons.location_on, color: theme.colorScheme.primary),
+          const SizedBox(width: 8),
+          Expanded( // Ensure text does not overflow
+            child: Text(
+              'Location Access Required',
+              style: theme.textTheme.bodySmall,
+              overflow: TextOverflow.ellipsis, // Add ellipsis if text overflows
+            ),
           ),
         ],
       ),
-    );
-  }
+      content: const Text(
+        'This app needs location access to detect your current location for job suggestions and recruiter recommendations.',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton.icon(
+          onPressed: () async {
+            Navigator.pop(context);
+            await openAppSettings();
+          },
+          icon: const Icon(Icons.settings),
+          label: const Text('Open Settings'),
+        ),
+      ],
+    ),
+  );
+}
 
   @override
   Widget build(BuildContext context) {

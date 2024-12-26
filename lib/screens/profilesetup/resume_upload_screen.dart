@@ -1,15 +1,19 @@
 import 'dart:io';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:shimmer/shimmer.dart';
 import 'package:lottie/lottie.dart';
-
 import '../../service/resume_serivce.dart';
 
 class ResumeUploadScreen extends StatefulWidget {
   final String userId;
+  final VoidCallback onProfileComplete;
 
-  const ResumeUploadScreen({Key? key, required this.userId}) : super(key: key);
+  const ResumeUploadScreen({
+    Key? key,
+    required this.userId,
+    required this.onProfileComplete,
+  }) : super(key: key);
 
   @override
   State<ResumeUploadScreen> createState() => _ResumeUploadScreenState();
@@ -29,6 +33,7 @@ class _ResumeUploadScreenState extends State<ResumeUploadScreen> {
     _loadExistingResume();
   }
 
+  // Previous methods remain unchanged...
   Future<void> _loadExistingResume() async {
     try {
       final resumeUrl = await _resumeService.fetchResumeUrl(widget.userId);
@@ -45,6 +50,7 @@ class _ResumeUploadScreenState extends State<ResumeUploadScreen> {
       _showSnackBar('Failed to load existing resume.', isError: true);
     }
   }
+
 
   Future<void> _pickAndUploadFile() async {
     try {
@@ -134,45 +140,540 @@ void _completeProfile() async {
   }
 
   try {
-    // Mark the user's profile as complete
-    await _resumeService.updateUserProfileStatus(widget.userId, true);
+    // Fetch user data from Firestore
+    final userDoc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(widget.userId)
+        .get();
 
-    // Show a success dialog
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => Dialog(
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Lottie.asset('assets/animations/congratulations.json', repeat: false),
-              const Text(
-                "Congratulations!",
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+    if (!userDoc.exists) {
+      _showSnackBar(
+        "User data not found. Please try again.",
+        isError: true,
+      );
+      return;
+    }
+
+    final userData = userDoc.data();
+    if (userData == null) {
+      _showSnackBar(
+        "User data is null. Please try again.",
+        isError: true,
+      );
+      return;
+    }
+
+    // Retrieve badges
+    final badges = userData['badges'] as Map<String, dynamic>? ?? {};
+
+    // List of required badge keys
+    const requiredBadges = [
+      'award',
+      'basicdetails',
+      'education',
+      'experience',
+      'jobpreferences',
+      'resume',
+    ];
+
+    // Check if required badges are earned
+    bool requiredBadgesEarned = requiredBadges.every((key) {
+      final badge = badges[key];
+      return badge is Map<String, dynamic> && badge['earned'] == true;
+    });
+
+    // Update user profile status based on required badges
+    await _resumeService.updateUserProfileStatus(widget.userId, requiredBadgesEarned);
+
+    if (mounted) {
+      if (requiredBadgesEarned) {
+        widget.onProfileComplete();
+
+        // Show a success dialog
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => Dialog(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Lottie.asset('assets/animations/congratulations.json',
+                      repeat: false),
+                  const Text(
+                    "Congratulations!",
+                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                  ),
+                  const Text(
+                    "Your profile setup is complete!",
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 24),
+                  ElevatedButton(
+                    onPressed: () {
+                      // Navigate back to the Home Screen in the Tab Bar
+                      Navigator.of(context).pop();
+                      if (mounted) {
+                        widget.onProfileComplete();
+                      }
+                    },
+                    child: const Text("Go to Home"),
+                  ),
+                ],
               ),
-              const Text(
-                "Your profile setup is complete!",
-                textAlign: TextAlign.center,
+            ),
+          ),
+        );
+      } else {
+        _showSnackBar(
+          "Not all required badges are earned. Complete all sections to finish profile setup.",
+          isError: true,
+        );
+      }
+    }
+  } catch (e) {
+    if (mounted) {
+      _showSnackBar(
+        "Failed to complete profile. Please try again.",
+        isError: true,
+      );
+    }
+    debugPrint("Error in _completeProfile: $e");
+  }
+}
+
+ 
+
+  Widget _buildResumeCard() {
+    final colorScheme = Theme.of(context).colorScheme;
+    
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 600),
+        child: Card(
+          elevation: 8,
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+            side: BorderSide(
+              color: colorScheme.outline.withOpacity(0.2),
+            ),
+          ),
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(24),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  colorScheme.surface,
+                  colorScheme.surface.withOpacity(0.8),
+                ],
               ),
-              const SizedBox(height: 24),
-              ElevatedButton(
-                onPressed: () => Navigator.pushReplacementNamed(context, '/home'),
-                child: const Text("Go to Home"),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: colorScheme.primaryContainer,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Icon(
+                          Icons.description_rounded,
+                          color: colorScheme.primary,
+                          size: 24,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Resume',
+                              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: colorScheme.primary,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Showcase your skills and experience',
+                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                color: colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: colorScheme.surfaceVariant.withOpacity(0.3),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: colorScheme.outline.withOpacity(0.2),
+                      ),
+                    ),
+                    child: Column(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: colorScheme.secondaryContainer,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Icon(
+                                  Icons.picture_as_pdf_rounded,
+                                  color: colorScheme.secondary,
+                                  size: 24,
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      uploadedFileName ?? 'Current Resume',
+                                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      'Ensure your resume is up-to-date',
+                                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                        color: colorScheme.onSurfaceVariant,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    onPressed: _deleteResume,
+                                    icon: const Icon(Icons.delete_rounded),
+                                    tooltip: 'Delete Resume',
+                                    style: IconButton.styleFrom(
+                                      backgroundColor: colorScheme.errorContainer.withOpacity(0.3),
+                                      foregroundColor: colorScheme.error,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  IconButton(
+                                    onPressed: _pickAndUploadFile,
+                                    icon: const Icon(Icons.upload_rounded),
+                                    tooltip: 'Update Resume',
+                                    style: IconButton.styleFrom(
+                                      backgroundColor: colorScheme.primaryContainer.withOpacity(0.3),
+                                      foregroundColor: colorScheme.primary,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (isUploading) ...[
+                          const Divider(height: 1),
+                          Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              children: [
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: LinearProgressIndicator(
+                                    value: uploadProgress,
+                                    backgroundColor: colorScheme.primaryContainer.withOpacity(0.3),
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                      colorScheme.primary,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Uploading... ${(uploadProgress * 100).toStringAsFixed(0)}%',
+                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: colorScheme.primary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),
     );
-  } catch (e) {
-    _showSnackBar("Failed to mark profile as complete. Please try again.", isError: true);
   }
-}
+
+  Widget _buildEmptyState() {
+    final colorScheme = Theme.of(context).colorScheme;
+    
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Container(
+          decoration: BoxDecoration(
+            color: colorScheme.primaryContainer.withOpacity(0.2),
+            shape: BoxShape.circle,
+          ),
+          padding: const EdgeInsets.all(32),
+          child: Icon(
+            Icons.upload_file_rounded,
+            size: 64,
+            color: colorScheme.primary,
+          ),
+        ),
+        const SizedBox(height: 24),
+        Text(
+          "Upload Your Resume!",
+          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: colorScheme.primary,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 32),
+          child: Text(
+            "Showcase your experience and get tailored job opportunities.",
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+              color: colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+        const SizedBox(height: 32),
+        FilledButton.icon(
+          onPressed: _pickAndUploadFile,
+          icon: const Icon(Icons.upload_rounded),
+          label: const Text("Upload Resume"),
+          style: FilledButton.styleFrom(
+            minimumSize: const Size(200, 56),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+          ),
+        ),
+        const SizedBox(height: 32),
+        _buildUploadGuidelines(),
+        const SizedBox(height: 32),
+        _buildBenefitsSection(),
+      ],
+    );
+  }
+
+  Widget _buildUploadGuidelines() {
+    final colorScheme = Theme.of(context).colorScheme;
+    
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: colorScheme.primaryContainer.withOpacity(0.1),
+        border: Border.all(
+          color: colorScheme.primary.withOpacity(0.2),
+        ),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: colorScheme.primaryContainer,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.info_rounded,
+                  color: colorScheme.primary,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                "File Upload Guidelines",
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: colorScheme.primary,
+                  fontSize: 16,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _buildGuidelineItem(
+            icon: Icons.description_rounded,
+            text: "Only .pdf or .docx files are allowed",
+          ),
+          const SizedBox(height: 8),
+          _buildGuidelineItem(
+            icon: Icons.storage_rounded,
+            text: "Maximum file size is 5MB",
+          ),
+          const SizedBox(height: 8),
+          _buildGuidelineItem(
+            icon: Icons.security_rounded,
+            text: "Uploading is quick and secure",
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGuidelineItem({
+    required IconData icon,
+    required String text,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+    
+    return Row(
+      children: [
+        Icon(
+          icon,
+          size: 16,
+          color: colorScheme.primary.withOpacity(0.7),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            text,
+            style: TextStyle(
+              fontSize: 14,
+              color: colorScheme.onSurface.withOpacity(0.8),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBenefitsSection() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            "Benefits",
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 16),
+          _buildBenefitItem(
+            icon: Icons.school_rounded,
+            backgroundColor: Colors.blue.shade50,
+            iconColor: Colors.blue.shade700,
+            text: "Fast-track your teaching career with top jobs",
+          ),
+          const SizedBox(height: 12),
+          _buildBenefitItem(
+            icon: Icons.phone_callback_rounded,
+            backgroundColor: Colors.green.shade50,
+            iconColor: Colors.green.shade700,
+            text: "Get direct calls from school recruiters",
+          ),
+          const SizedBox(height: 12),
+          _buildBenefitItem(
+            icon: Icons.insights_rounded,
+            backgroundColor: Colors.purple.shade50,
+            iconColor: Colors.purple.shade700,
+            text: "Discover roles tailored to your expertise",
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBenefitItem({
+    required IconData icon,
+    required Color backgroundColor,
+    required Color iconColor,
+    required String text,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: iconColor.withOpacity(0.2),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Icon(
+              icon,
+              color: iconColor,
+              size: 24,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: Colors.black87,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    
     return Scaffold(
       appBar: AppBar(
         title: const Text('Resume Upload'),
@@ -185,233 +686,15 @@ void _completeProfile() async {
               constraints: BoxConstraints(
                 minHeight: constraints.maxHeight,
               ),
-              child: IntrinsicHeight(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      if (isUploading)
-                        Column(
-                          children: [
-                            Shimmer.fromColors(
-                              baseColor: Colors.grey[300]!,
-                              highlightColor: Colors.grey[100]!,
-                              child: Container(
-                                height: 150,
-                                width: double.infinity,
-                                decoration: BoxDecoration(
-                                  color: Colors.grey[300],
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              'Uploading: ${(uploadProgress * 100).toStringAsFixed(0)}%',
-                              style: const TextStyle(
-                                  fontSize: 16, fontWeight: FontWeight.w500),
-                            ),
-                          ],
-                        )
-                      else if (uploadedFileUrl != null)
-                        Card(
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12)),
-                          elevation: 4,
-                          margin: const EdgeInsets.only(bottom: 16),
-                          child: ListTile(
-                            leading: const Icon(Icons.description,
-                                size: 36, color: Colors.blue),
-                            title: Text( 'Resume',
-                              style:
-                                  const TextStyle(fontWeight: FontWeight.bold),
-                            ),
-                            subtitle:
-                                const Text("Ensure your resume is up-to-date to showcase your latest achievements and skills."),
-                            trailing: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                IconButton(
-                                  icon: const Icon(Icons.delete,
-                                      color: Colors.red),
-                                  onPressed: _deleteResume,
-                                ),
-                                IconButton(
-                                  icon: const Icon(Icons.upload_file,
-                                      color: Colors.blue),
-                                  onPressed: _pickAndUploadFile,
-                                ),
-                              ],
-                            ),
-                          ),
-                        )
-                      else
-                        Expanded(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Container(
-                                decoration: BoxDecoration(
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .primaryContainer
-                                      .withOpacity(0.2),
-                                  shape: BoxShape.circle,
-                                ),
-                                padding: const EdgeInsets.all(24),
-                                child: const Icon(
-                                  Icons.upload_file,
-                                  size: 80,
-                                  color: Colors.blue,
-                                ),
-                              ),
-                              const SizedBox(height: 24),
-                              Text(
-                                "Upload Your Resume!",
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .headlineSmall
-                                    ?.copyWith(
-                                      fontWeight: FontWeight.bold,
-                                      color:
-                                          Theme.of(context).colorScheme.primary,
-                                    ),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                "Showcase your experience and get tailored job opportunities.",
-                                textAlign: TextAlign.center,
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .bodyLarge
-                                    ?.copyWith(
-                                      color: Theme.of(context)
-                                          .colorScheme
-                                          .onSurfaceVariant,
-                                    ),
-                              ),
-                              const SizedBox(height: 16),
-                              ElevatedButton.icon(
-                                onPressed: _pickAndUploadFile,
-                                icon: const Icon(Icons.upload),
-                                label: const Text("Upload Resume"),
-                                style: ElevatedButton.styleFrom(
-                                  minimumSize: const Size(180, 50),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                ),
-                              ),
-                              Container(
-                                margin:
-                                    const EdgeInsets.symmetric(vertical: 16),
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .primaryContainer
-                                      .withOpacity(0.1),
-                                  border: Border.all(
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .primary
-                                        .withOpacity(0.3),
-                                  ),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.all(8),
-                                      decoration: BoxDecoration(
-                                        color: Theme.of(context)
-                                            .colorScheme
-                                            .primary,
-                                        shape: BoxShape.circle,
-                                      ),
-                                      child: const Icon(
-                                        Icons.info_rounded,
-                                        color: Colors.white,
-                                        size: 20,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            "File Upload Guidelines",
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.bold,
-                                              color: Theme.of(context)
-                                                  .colorScheme
-                                                  .primary,
-                                              fontSize: 16,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 4),
-                                          const Text(
-                                            "• Only .pdf or .docx files are allowed.\n"
-                                            "• Maximum file size is 5MB.\n"
-                                            "• Uploading is quick and secure.",
-                                            style: TextStyle(
-                                              fontSize: 14,
-                                              color: Colors.black87,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(height: 24),
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Padding(
-                                    padding: EdgeInsets.symmetric(vertical: 16),
-                                    child: Column(
-                                      children: [
-                                        _buildBenefitItem(
-                                          icon: Icons.school_rounded,
-                                          backgroundColor: Colors.blue.shade100,
-                                          iconColor: Colors.blue.shade700,
-                                          text:
-                                              "Fast-track your teaching career with top jobs",
-                                        ),
-                                        const SizedBox(height: 12),
-                                        _buildBenefitItem(
-                                          icon: Icons.phone_callback_rounded,
-                                          backgroundColor:
-                                              Colors.green.shade100,
-                                          iconColor: Colors.green.shade700,
-                                          text:
-                                              "Get direct calls from school recruiters",
-                                        ),
-                                        const SizedBox(height: 12),
-                                        _buildBenefitItem(
-                                          icon: Icons.insights_rounded,
-                                          backgroundColor:
-                                              Colors.purple.shade100,
-                                          iconColor: Colors.purple.shade700,
-                                          text:
-                                              "Discover roles tailored to your expertise",
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                    ],
-                  ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                child: Column(
+                  children: [
+                    if (isUploading || uploadedFileUrl != null)
+                      _buildResumeCard()
+                    else
+                      _buildEmptyState(),
+                  ],
                 ),
               ),
             ),
@@ -423,52 +706,21 @@ void _completeProfile() async {
           padding: const EdgeInsets.all(16),
           child: FilledButton(
             onPressed: uploadedFileUrl != null ? _completeProfile : null,
-            child: const Text("Complete Profile"),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBenefitItem({
-    required IconData icon,
-    required Color backgroundColor,
-    required Color iconColor,
-    required String text,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: Colors.white,
+            style: FilledButton.styleFrom(
+              minimumSize: const Size(double.infinity, 56),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
             ),
-            child: Icon(
-              icon,
-              color: iconColor,
-              size: 24,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              text,
+            child: const Text(
+              "Complete Profile",
               style: TextStyle(
-                fontSize: 14,
+                fontSize: 16,
                 fontWeight: FontWeight.w600,
-                color: Colors.black87,
               ),
             ),
           ),
-        ],
+        ),
       ),
     );
   }

@@ -1,9 +1,11 @@
-import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:google_sign_in/google_sign_in.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
+import '../screens/profilesetup/splash_screen_with_tabs.dart';
 import '../screens/profilesetup/profile_setup_manager.dart';
-import 'homepage.dart';
+import '../service/auth_service.dart';
+import 'email_verification_page.dart';
+import 'signup_page.dart';
+
 
 class SignInPage extends StatefulWidget {
   const SignInPage({Key? key}) : super(key: key);
@@ -16,7 +18,7 @@ class _SignInPageState extends State<SignInPage> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  String? loggedInUserId;
+  final AuthService _authService = AuthService(); // Instance of AuthService
   bool _isLoading = false;
 
   @override
@@ -140,7 +142,7 @@ class _SignInPageState extends State<SignInPage> {
         ElevatedButton.icon(
           onPressed: _signInWithGoogle,
           icon: Image.asset(
-            'assets/icons/google.png', // Ensure you have this asset
+            'assets/icons/google.png',
             height: 24,
             width: 24,
           ),
@@ -160,37 +162,56 @@ class _SignInPageState extends State<SignInPage> {
     );
   }
 
-  Widget _buildSignUpPrompt(ColorScheme colorScheme) {
-    return TextButton(
-      onPressed: _navigateToSignUp,
-      child: const Text('Don’t have an account? Sign up here.'),
-      style: TextButton.styleFrom(
-        foregroundColor: colorScheme.primary,
-      ),
+Widget _buildSignUpPrompt(ColorScheme colorScheme) {
+  return TextButton(
+    onPressed: () {
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const SignUpPage()), // Replace with your actual SignUpPage widget
+      );
+    },
+    style: TextButton.styleFrom(
+      foregroundColor: colorScheme.primary,
+    ),
+    child: const Text('Don’t have an account? Sign up here.'),
+  );
+}
+
+
+Future<void> _signInWithEmail() async {
+  if (!_formKey.currentState!.validate()) return;
+
+  setState(() => _isLoading = true);
+
+  try {
+    final user = await _authService.signInWithEmail(
+      _emailController.text.trim(),
+      _passwordController.text.trim(),
     );
+
+    if (user != null) {
+      debugPrint("Sign-in successful. Navigating based on user state.");
+      await _navigateBasedOnUser(user.uid);
+    }
+  } catch (e) {
+    debugPrint("Error during email sign-in: $e");
+    _showErrorDialog("Sign-in failed. Please try again.");
+  } finally {
+    setState(() => _isLoading = false);
   }
+}
 
-  Future<void> _signInWithEmail() async {
-    if (!_formKey.currentState!.validate()) return;
-
+  Future<void> _signInWithGoogle() async {
     setState(() {
       _isLoading = true;
     });
 
     try {
-      UserCredential userCredential =
-          await FirebaseAuth.instance.signInWithEmailAndPassword(
-        email: _emailController.text.trim(),
-        password: _passwordController.text.trim(),
-      );
-
-      final user = userCredential.user;
+      final user = await _authService.signInWithGoogle();
       if (user != null) {
-        loggedInUserId = user.uid;
-        await _handleUserNavigation(user.uid);
+        await _navigateBasedOnUser(user.uid);
       }
     } catch (e) {
-      _showErrorDialog('Sign-in failed. Please try again.');
+      _showErrorDialog('Google sign-in failed. Please try again.');
     } finally {
       setState(() {
         _isLoading = false;
@@ -198,96 +219,58 @@ class _SignInPageState extends State<SignInPage> {
     }
   }
 
-Future<void> _signInWithGoogle() async {
-  if (!mounted) return; // Early return if the widget is not mounted
+  
 
-  setState(() {
-    _isLoading = true;
-  });
-
+Future<void> _navigateBasedOnUser(String userId) async {
   try {
-    final googleUser = await GoogleSignIn().signIn();
-    if (googleUser == null) return; // User canceled the sign-in process
+    final user = FirebaseAuth.instance.currentUser;
 
-    final googleAuth = await googleUser.authentication;
-    final credential = GoogleAuthProvider.credential(
-      accessToken: googleAuth.accessToken,
-      idToken: googleAuth.idToken,
-    );
+    if (user == null) {
+      _showErrorDialog("No user found. Please sign in again.");
+      return;
+    }
 
-    final userCredential =
-        await FirebaseAuth.instance.signInWithCredential(credential);
+    if (!user.emailVerified) {
+      debugPrint("User email not verified. Navigating to Email Verification Page.");
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) => const EmailVerificationPage(),
+        ),
+      );
+      return;
+    }
 
-    final user = userCredential.user;
-    if (user != null) {
-      loggedInUserId = user.uid;
+    // Check if the profile is complete
+    final isProfileComplete = await _authService.isProfileComplete(userId);
 
-      // Check if the user document exists in Firestore
-      final userDoc = FirebaseFirestore.instance.collection('users').doc(user.uid);
-      final docSnapshot = await userDoc.get();
-
-      if (!docSnapshot.exists) {
-        // Create a new document with `basicDetails`
-        await userDoc.set({
-          'uid': user.uid,
-          'createdAt': FieldValue.serverTimestamp(),
-          'profileComplete': false,
-          'photoURL': user.photoURL ?? "",
-          'basicDetails': {
-            'fullName': user.displayName ?? 'N/A',
-            'email': user.email ?? 'N/A',
-            'dob': null, // Placeholder for DOB
-            'gender': null, // Placeholder for Gender
-          },
-        });
-      }
-
-      if (mounted) {
-        await _handleUserNavigation(user.uid);
-      }
+    if (!isProfileComplete) {
+      debugPrint("User profile incomplete. Navigating to Profile Setup Page.");
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) => ProfileSetupManager(
+            userId: userId,
+            onProfileComplete: _navigateToHomeTab,
+          ),
+        ),
+      );
+    } else {
+      debugPrint("User profile complete. Navigating to Home.");
+      _navigateToHomeTab();
     }
   } catch (e) {
-    if (mounted) {
-      _showErrorDialog('Google sign-in failed. Please try again.');
-    }
-  } finally {
-    if (mounted) {
-      setState(() {
-        _isLoading = false;
-      });
-    }
+    debugPrint("Error in _navigateBasedOnUser: $e");
+    _showErrorDialog("An error occurred. Please try again.");
   }
 }
 
-  Future<void> _handleUserNavigation(String userId) async {
-    final userDoc = FirebaseFirestore.instance.collection('users').doc(userId);
-    final docSnapshot = await userDoc.get();
 
-    if (docSnapshot.exists && docSnapshot['profileComplete'] == false) {
-      _navigateToProfileSetup();
-    } else {
-      _navigateToHome();
-    }
-  }
 
-  void _navigateToProfileSetup() {
+  void _navigateToHomeTab() {
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
-        builder: (_) => ProfileSetupManager(userId: loggedInUserId!),
+        builder: (_) => SplashScreenWithTabs(),
       ),
     );
-  }
-
-  void _navigateToHome() {
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(
-        builder: (_) => const HomePage(),
-      ),
-    );
-  }
-
-  void _navigateToSignUp() {
-    _showErrorDialog('Sign-Up page is not implemented yet.');
   }
 
   void _showErrorDialog(String message) {

@@ -8,7 +8,7 @@ import '../../data/education_data.dart';
 
 class EducationDetailsScreen extends StatefulWidget {
   final String userId;
-  final VoidCallback onNext;
+  final void Function(bool isEarned) onNext;
   final VoidCallback onPrevious;
 
   const EducationDetailsScreen({
@@ -43,17 +43,23 @@ class _EducationDetailsScreenState extends State<EducationDetailsScreen> {
           .get();
 
       if (doc.exists && doc.data()?['educationDetails'] != null) {
-        setState(() {
-          educationDetails =
-              List<Map<String, dynamic>>.from(doc.data()!['educationDetails']);
-          isLoading = false;
-        });
+        if (mounted) {
+          setState(() {
+            educationDetails = List<Map<String, dynamic>>.from(
+                doc.data()!['educationDetails']);
+            isLoading = false;
+          });
+        }
       } else {
-        setState(() => isLoading = false);
+        if (mounted) {
+          setState(() => isLoading = false);
+        }
       }
     } catch (e) {
-      setState(() => isLoading = false);
-      _showErrorSnackBar('Failed to load education details');
+      if (mounted) {
+        setState(() => isLoading = false);
+        _showErrorSnackBar('Failed to load education details');
+      }
     }
   }
 
@@ -130,22 +136,23 @@ class _EducationDetailsScreenState extends State<EducationDetailsScreen> {
     });
   }
 
-
   Future<void> _saveAndNext() async {
+    print('educationDetails is $educationDetails');
+    print('educationDetails is ${educationDetails.length}');
     try {
       await FirebaseFirestore.instance
           .collection('users')
           .doc(widget.userId)
           .update({
         'educationDetails': educationDetails,
-         'badges.education': {
-          'earned': true,
+        'badges.education': {
+          'earned': educationDetails.isNotEmpty,
           'earnedAt': FieldValue.serverTimestamp(),
         },
         'lastUpdated': FieldValue.serverTimestamp(),
       });
 
-      if (mounted) widget.onNext();
+      if (mounted) widget.onNext(educationDetails.isNotEmpty);
     } catch (e) {
       _showErrorSnackBar('Failed to save education details');
     }
@@ -154,12 +161,12 @@ class _EducationDetailsScreenState extends State<EducationDetailsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-    appBar: AppBar(
-      title: educationDetails.isNotEmpty
-          ? const Text('Education Details')
-          : null, // AppBar will be empty when no education details exist
-      centerTitle: true,
-    ),
+      appBar: AppBar(
+        title: educationDetails.isNotEmpty
+            ? const Text('Education Details')
+            : null, // AppBar will be empty when no education details exist
+        centerTitle: true,
+      ),
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
           : Column(

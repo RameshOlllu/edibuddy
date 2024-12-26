@@ -238,7 +238,10 @@ class _AddExperienceScreenState extends State<AddExperienceScreen> {
           experiences.add(experience);
         }
 
-        await userDoc.update({'experienceDetails': experiences});
+        await userDoc.update({'experienceDetails': experiences,'badges.experience': {
+          'earned': true,
+          'earnedAt': FieldValue.serverTimestamp(),
+        },},);
       } else {
         await userDoc.set({'experienceDetails': [experience]});
       }

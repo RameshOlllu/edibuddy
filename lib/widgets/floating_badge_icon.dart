@@ -2,12 +2,17 @@ import 'package:flutter/material.dart';
 import 'badge_display_dialog.dart';
 
 class FloatingBadgeIcon extends StatelessWidget {
-  final List<bool> completedSteps;
+  final Map<String, dynamic> badges;
 
-  const FloatingBadgeIcon({Key? key, required this.completedSteps}) : super(key: key);
+  const FloatingBadgeIcon({Key? key, required this.badges}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
+    // Ensure only `earned` is used here
+    final completedSteps = badges.values.map((badge) {
+      return badge['earned'] as bool;
+    }).toList();
+
     return FloatingActionButton(
       onPressed: () {
         showDialog(
@@ -18,8 +23,11 @@ class FloatingBadgeIcon extends StatelessWidget {
         );
       },
       backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-      child: Text('Rames'),
+      child: Icon(
+        Icons.badge,
+        color: Theme.of(context).colorScheme.onPrimaryContainer,
+        size: 28,
+      ),
     );
   }
 }
-
