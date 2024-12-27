@@ -1,8 +1,12 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:google_fonts/google_fonts.dart';
+
+import 'otp_verification_page.dart';
 
 class SignUpPage extends StatefulWidget {
   const SignUpPage({Key? key}) : super(key: key);
@@ -18,68 +22,103 @@ class _SignUpPageState extends State<SignUpPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  final _mobileNumberController = TextEditingController();
+
   String? _gender;
+  String? _workStatus;
+  bool _agreeToTerms = false;
+  bool _updatesAndPromotions = false;
   bool _isLoading = false;
   bool _isEmailUnique = true;
+  bool _isMobileUnique = true;
+  bool _isVerifyButtonEnabled = false;
+  String? _otpCode;
+  String? _verificationId;
+  bool _isMobileVerified = false;
+
+  PhoneAuthCredential? _phoneCredential; // Store verified phone credential
+String? _oldPhoneNumber; // Store old phone number
+
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
 
     return Scaffold(
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 32.0),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _buildHeader(context),
-                    const SizedBox(height: 32),
-                    _buildSignUpForm(),
-                    const SizedBox(height: 24),
-                    _buildSignUpButton(context, colorScheme),
-                    const SizedBox(height: 16),
-                    _buildSignInPrompt(colorScheme),
-                  ],
+          ? Center(child: CircularProgressIndicator(color: theme.colorScheme.primary))
+          : SafeArea(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 32.0),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildHeader(theme),
+                      const SizedBox(height: 40),
+                      _buildSignUpForm(theme),
+                      const SizedBox(height: 24),
+                      _buildMobileVerificationSection(theme),
+                      const SizedBox(height: 24),
+                      _buildWorkStatus(theme),
+                      const SizedBox(height: 32),
+                      _buildTermsAndConditions(theme),
+                      const SizedBox(height: 32),
+                      _buildSignUpButton(theme),
+                      const SizedBox(height: 24),
+                      _buildSignInPrompt(theme),
+                    ],
+                  ),
                 ),
               ),
             ),
     );
   }
 
-  Widget _buildHeader(BuildContext context) {
+  Widget _buildHeader(ThemeData theme) {
     return Column(
       children: [
         Text(
           'Create Your Account',
-          style: GoogleFonts.lato(
-            textStyle: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
+          style: theme.textTheme.headlineMedium?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: theme.colorScheme.primary,
           ),
           textAlign: TextAlign.center,
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 12),
         Text(
           'Sign up to get started!',
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.grey),
+          style: theme.textTheme.bodyLarge?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
           textAlign: TextAlign.center,
         ),
       ],
     );
   }
 
-  Widget _buildSignUpForm() {
+  InputDecoration _getInputDecoration(ThemeData theme, String label, {bool isMandatory = false}) {
+    return InputDecoration(
+      labelText: isMandatory ? '$label *' : label,
+      labelStyle: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: theme.colorScheme.outline),
+      ),
+      filled: true,
+      fillColor: theme.colorScheme.surface,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+    );
+  }
+
+  Widget _buildSignUpForm(ThemeData theme) {
     return Column(
       children: [
-        // Full Name
         TextFormField(
           controller: _fullNameController,
-          decoration: const InputDecoration(labelText: 'Full Name'),
+          decoration: _getInputDecoration(theme, 'Full Name', isMandatory: true),
           validator: (value) {
             if (value == null || value.trim().isEmpty) {
               return 'Please enter your full name.';
@@ -87,13 +126,11 @@ class _SignUpPageState extends State<SignUpPage> {
             return null;
           },
         ),
-        const SizedBox(height: 16),
-        // Date of Birth
+        const SizedBox(height: 20),
         TextFormField(
           controller: _dobController,
-          decoration: const InputDecoration(
-            labelText: 'Date of Birth',
-            suffixIcon: Icon(Icons.calendar_today),
+          decoration: _getInputDecoration(theme, 'Date of Birth', isMandatory: true).copyWith(
+            suffixIcon: Icon(Icons.calendar_today, color: theme.colorScheme.primary),
           ),
           readOnly: true,
           onTap: _selectDateOfBirth,
@@ -104,29 +141,19 @@ class _SignUpPageState extends State<SignUpPage> {
             return null;
           },
         ),
-        const SizedBox(height: 16),
-        // Gender
+        const SizedBox(height: 20),
         DropdownButtonFormField<String>(
           value: _gender,
-          items: const [
-            DropdownMenuItem(value: 'Male', child: Text('Male')),
-            DropdownMenuItem(value: 'Female', child: Text('Female')),
-            DropdownMenuItem(value: 'Other', child: Text('Other')),
-          ],
+          items: ['Male', 'Female', 'Other'].map((value) {
+            return DropdownMenuItem(value: value, child: Text(value));
+          }).toList(),
           onChanged: (value) => setState(() => _gender = value),
-          decoration: const InputDecoration(labelText: 'Gender'),
-          validator: (value) {
-            if (value == null || value.isEmpty) {
-              return 'Please select your gender.';
-            }
-            return null;
-          },
+          decoration: _getInputDecoration(theme, 'Gender'),
         ),
-        const SizedBox(height: 16),
-        // Email
+        const SizedBox(height: 20),
         TextFormField(
           controller: _emailController,
-          decoration: const InputDecoration(labelText: 'Email'),
+          decoration: _getInputDecoration(theme, 'Email', isMandatory: true),
           keyboardType: TextInputType.emailAddress,
           onChanged: (_) => _checkEmailAvailability(),
           validator: (value) {
@@ -142,11 +169,10 @@ class _SignUpPageState extends State<SignUpPage> {
             return null;
           },
         ),
-        const SizedBox(height: 16),
-        // Password
+        const SizedBox(height: 20),
         TextFormField(
           controller: _passwordController,
-          decoration: const InputDecoration(labelText: 'Password'),
+          decoration: _getInputDecoration(theme, 'Password', isMandatory: true),
           obscureText: true,
           validator: (value) {
             if (value == null || value.length < 6) {
@@ -155,11 +181,10 @@ class _SignUpPageState extends State<SignUpPage> {
             return null;
           },
         ),
-        const SizedBox(height: 16),
-        // Confirm Password
+        const SizedBox(height: 20),
         TextFormField(
           controller: _confirmPasswordController,
-          decoration: const InputDecoration(labelText: 'Confirm Password'),
+          decoration: _getInputDecoration(theme, 'Confirm Password', isMandatory: true),
           obscureText: true,
           validator: (value) {
             if (value != _passwordController.text) {
@@ -172,26 +197,258 @@ class _SignUpPageState extends State<SignUpPage> {
     );
   }
 
-  Widget _buildSignUpButton(BuildContext context, ColorScheme colorScheme) {
-    return ElevatedButton(
-      onPressed: _signUp,
-      style: ElevatedButton.styleFrom(
-        minimumSize: const Size(double.infinity, 48),
-        backgroundColor: colorScheme.primary,
-        foregroundColor: colorScheme.onPrimary,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-      child: const Text('Sign Up', style: TextStyle(fontWeight: FontWeight.bold)),
+    Widget _buildWorkStatus(ThemeData theme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Work Status *',
+          style: theme.textTheme.titleMedium?.copyWith(color: theme.colorScheme.onSurface),
+        ),
+        const SizedBox(height: 16),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            _buildWorkStatusOption(theme, 'Experienced', 'I have work experience', 'experienced'),
+            _buildWorkStatusOption(theme, 'Fresher', "I am a student / haven't worked yet", 'fresher'),
+          ],
+        ),
+      ],
     );
   }
 
-  Widget _buildSignInPrompt(ColorScheme colorScheme) {
-    return TextButton(
-      onPressed: () => Navigator.pop(context),
-      child: const Text('Already have an account? Sign in here.'),
-      style: TextButton.styleFrom(foregroundColor: colorScheme.primary),
+
+  Widget _buildWorkStatusOption(ThemeData theme, String title, String subtitle, String value) {
+    final isSelected = _workStatus == value;
+    return GestureDetector(
+      onTap: () => setState(() => _workStatus = value),
+      child: Container(
+        width: MediaQuery.of(context).size.width * 0.4,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: isSelected ? theme.colorScheme.primary.withOpacity(0.2) : theme.colorScheme.surface,
+          border: Border.all(
+            color: isSelected ? theme.colorScheme.primary : theme.colorScheme.outline,
+          ),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Column(
+          children: [
+            Text(title, style: theme.textTheme.titleMedium),
+            const SizedBox(height: 8),
+            Text(subtitle, textAlign: TextAlign.center, style: theme.textTheme.bodySmall),
+          ],
+        ),
+      ),
     );
   }
+
+
+Widget _buildTermsAndConditions(ThemeData theme) {
+    return Column(
+      children: [
+        Row(
+          children: [
+            Checkbox(
+              value: _updatesAndPromotions,
+              onChanged: (value) => setState(() => _updatesAndPromotions = value!),
+              activeColor: theme.colorScheme.primary,
+            ),
+            Expanded(
+              child: Text(
+                'Send me important updates & promotions via SMS, email, and WhatsApp',
+                style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurface),
+              ),
+            ),
+          ],
+        ),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Checkbox(
+              value: _agreeToTerms,
+              onChanged: (value) => setState(() => _agreeToTerms = value!),
+              activeColor: theme.colorScheme.primary,
+            ),
+            Expanded(
+              child: RichText(
+                text: TextSpan(
+                  text: 'By clicking Register, you agree to the ',
+                  style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurface),
+                  children: [
+                    TextSpan(
+                      text: 'Terms and Conditions',
+                      style: TextStyle(color: theme.colorScheme.primary, decoration: TextDecoration.underline),
+                      recognizer: TapGestureRecognizer()
+                        ..onTap = () => _openFullScreenDialog(context, 'Terms and Conditions'),
+                    ),
+                    const TextSpan(text: ' & '),
+                    TextSpan(
+                      text: 'Privacy Policy',
+                      style: TextStyle(color: theme.colorScheme.primary, decoration: TextDecoration.underline),
+                      recognizer: TapGestureRecognizer()
+                        ..onTap = () => _openFullScreenDialog(context, 'Privacy Policy'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+
+void _openFullScreenDialog(BuildContext context, String title) {
+    showDialog(
+      context: context,
+      builder: (_) => Scaffold(
+        appBar: AppBar(title: Text(title)),
+        body: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Text('Content for $title goes here.'),
+        ),
+      ),
+    );
+  }
+
+
+Widget _buildMobileVerificationSection(ThemeData theme) {
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      // Mobile Number Field with Label
+      Text(
+        'Mobile Number *',
+        style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+      ),
+      const SizedBox(height: 8),
+      Row(
+        children: [
+          // Mobile Number Input Field
+          Expanded(
+            child: TextFormField(
+              controller: _mobileNumberController,
+              decoration: _getInputDecoration(theme, 'Enter your mobile number', isMandatory: false).copyWith(
+                prefixText: '+91 ',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                helperText: 'Recruiters will contact you on this number.',
+                helperStyle: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              keyboardType: TextInputType.phone,
+              onChanged: (value) {
+                setState(() {
+                  // Enable button only for valid numbers
+                  _isVerifyButtonEnabled = RegExp(r'^[6-9]\d{9}$').hasMatch(value);
+                });
+              },
+              validator: (value) {
+                if (value == null || value.trim().isEmpty) {
+                  return 'Please enter your mobile number.';
+                }
+                if (!RegExp(r'^[6-9]\d{9}$').hasMatch(value)) {
+                  return 'Please enter a valid Indian mobile number.';
+                }
+                if (!_isMobileUnique) {
+                  return 'This mobile number is already registered.';
+                }
+                return null;
+              },
+            ),
+          ),
+          const SizedBox(width: 12),
+          // Verify Button
+          ElevatedButton(
+            onPressed: _isVerifyButtonEnabled
+                ? () async {
+                    if (_mobileNumberController.text.isNotEmpty) {
+                      await _startOtpVerification();
+                    }
+                  }
+                : null,
+           
+            child: const Text('Verify'),
+          ),
+        ],
+      ),
+      const SizedBox(height: 16),
+
+      // Verified Status Message
+      if (_isMobileVerified)
+        Row(
+          children: [
+            const Icon(Icons.check_circle, color: Colors.green, size: 20),
+            const SizedBox(width: 8),
+            Text(
+              'Mobile number verified!',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: Colors.green,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+    ],
+  );
+}
+
+  Widget _buildSignUpButton(ThemeData theme) {
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton(
+        onPressed: (_isMobileVerified && _agreeToTerms && _formKey.currentState?.validate() == true)
+            ? _signUp
+            : null,
+        style: ElevatedButton.styleFrom(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+        child: const Text('Register Now', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+      ),
+    );
+  }
+
+  Widget _buildSignInPrompt(ThemeData theme) {
+    return Center(
+      child: TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: Text(
+          'Already have an account? Sign in here.',
+          style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.primary),
+        ),
+      ),
+    );
+  }
+
+
+Future<void> _startOtpVerification() async {
+  final phoneNumber = '+91${_mobileNumberController.text.trim()}';
+  Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (context) => OtpVerificationPage(
+        phoneNumber: phoneNumber,
+        onVerificationComplete: (isVerified, isMerged, otp) {
+          debugPrint('Test isMObile $_isMobileVerified otp $otp');
+          setState(() {
+            _isMobileVerified = isVerified;
+
+            // Store the OTP if verification was successful
+            if (isVerified && otp != null) {
+              _otpCode = otp;
+            }
+          });
+        },
+      ),
+    ),
+  );
+}
+
 
   Future<void> _selectDateOfBirth() async {
     final selectedDate = await showDatePicker(
@@ -212,35 +469,41 @@ class _SignUpPageState extends State<SignUpPage> {
       return;
     }
 
-    final signInMethods =
-        await FirebaseAuth.instance.fetchSignInMethodsForEmail(email);
+    final signInMethods = await FirebaseAuth.instance.fetchSignInMethodsForEmail(email);
     setState(() => _isEmailUnique = signInMethods.isEmpty);
   }
 
 Future<void> _signUp() async {
-  if (!_formKey.currentState!.validate()) return;
+  if (!_formKey.currentState!.validate() || !_isMobileVerified) {
+    _showErrorDialog('Please complete the form and verify your mobile number.');
+    return;
+  }
 
   setState(() => _isLoading = true);
+
   try {
-    // Register User
     final credential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
       email: _emailController.text.trim(),
       password: _passwordController.text.trim(),
     );
 
     final user = credential.user;
-    if (user == null) {
-      throw FirebaseAuthException(
-        code: 'user-null',
-        message: 'Failed to create user. Please try again.',
+    if (user == null) throw FirebaseAuthException(code: 'user-null');
+
+    // Link phone credential if OTP is available
+    if (_otpCode != null && _verificationId != null) {
+      final phoneCredential = PhoneAuthProvider.credential(
+        verificationId: _verificationId!,
+        smsCode: _otpCode!, // Use the stored OTP
       );
+      await user.linkWithCredential(phoneCredential); // Merge accounts
     }
 
-    // Convert DOB string to Timestamp
-    final dobDate = DateFormat('yyyy-MM-dd').parse(_dobController.text.trim());
-    final dobTimestamp = Timestamp.fromDate(dobDate);
+    // Add user details to Firestore
+    final dobTimestamp = Timestamp.fromDate(
+      DateFormat('yyyy-MM-dd').parse(_dobController.text.trim()),
+    );
 
-    // Save Additional Info
     await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
       'uid': user.uid,
       'profileComplete': false,
@@ -248,38 +511,17 @@ Future<void> _signUp() async {
       'lastUpdated': FieldValue.serverTimestamp(),
       'basicDetails': {
         'fullName': _fullNameController.text.trim(),
-        'dob': dobTimestamp, // Save DOB as Timestamp
+        'dob': dobTimestamp,
         'gender': _gender,
         'email': _emailController.text.trim(),
-      },
-      'badges': {
-        'basicdetails': {
-          'earned': true,
-          'earnedAt': FieldValue.serverTimestamp(),
-        },
+        'mobileNumber': '+91 ${_mobileNumberController.text.trim()}', // Store verified number
+        'workStatus': _workStatus,
       },
     });
 
-    // Send Email Verification
-    await user.sendEmailVerification();
-
-    // Navigate to Email Verification Page
     Navigator.pushReplacementNamed(context, '/email-verification');
-  } on FirebaseAuthException catch (e) {
-    // Enhanced Error Handling
-    switch (e.code) {
-      case 'email-already-in-use':
-        _showErrorDialog('This email is already registered. Please use another email.');
-        break;
-      case 'weak-password':
-        _showErrorDialog('The password is too weak. Please choose a stronger password.');
-        break;
-      default:
-        _showErrorDialog('Signup failed: ${e.message}');
-    }
   } catch (e) {
-    debugPrint('Error while signup: ${e.toString()}');
-    _showErrorDialog('An unexpected error occurred. Please try again.');
+    _showErrorDialog('Signup failed. Please try again.');
   } finally {
     setState(() => _isLoading = false);
   }
@@ -288,7 +530,7 @@ Future<void> _signUp() async {
   void _showErrorDialog(String message) {
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (context) => AlertDialog(
         title: const Text('Error'),
         content: Text(message),
         actions: [
