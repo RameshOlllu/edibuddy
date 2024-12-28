@@ -6,7 +6,6 @@ import '../service/auth_service.dart';
 import 'email_verification_page.dart';
 import 'signup_page.dart';
 
-
 class SignInPage extends StatefulWidget {
   const SignInPage({Key? key}) : super(key: key);
 
@@ -18,7 +17,7 @@ class _SignInPageState extends State<SignInPage> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  final AuthService _authService = AuthService(); // Instance of AuthService
+  final AuthService _authService = AuthService();
   bool _isLoading = false;
 
   @override
@@ -26,6 +25,14 @@ class _SignInPageState extends State<SignInPage> {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
+      appBar: AppBar(
+        backgroundColor: colorScheme.surface,
+        elevation: 0,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back, color: colorScheme.primary),
+          onPressed: () => _navigateToHomeTab(),
+        ),
+      ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : Center(
@@ -162,48 +169,43 @@ class _SignInPageState extends State<SignInPage> {
     );
   }
 
-Widget _buildSignUpPrompt(ColorScheme colorScheme) {
-  return TextButton(
-    onPressed: () {
-      Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const SignUpPage()), // Replace with your actual SignUpPage widget
-      );
-    },
-    style: TextButton.styleFrom(
-      foregroundColor: colorScheme.primary,
-    ),
-    child: const Text('Don’t have an account? Sign up here.'),
-  );
-}
-
-
-Future<void> _signInWithEmail() async {
-  if (!_formKey.currentState!.validate()) return;
-
-  setState(() => _isLoading = true);
-
-  try {
-    final user = await _authService.signInWithEmail(
-      _emailController.text.trim(),
-      _passwordController.text.trim(),
+  Widget _buildSignUpPrompt(ColorScheme colorScheme) {
+    return TextButton(
+      onPressed: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const SignUpPage()),
+        );
+      },
+      style: TextButton.styleFrom(
+        foregroundColor: colorScheme.primary,
+      ),
+      child: const Text('Don’t have an account? Sign up here.'),
     );
-
-    if (user != null) {
-      debugPrint("Sign-in successful. Navigating based on user state.");
-      await _navigateBasedOnUser(user.uid);
-    }
-  } catch (e) {
-    debugPrint("Error during email sign-in: $e");
-    _showErrorDialog("Sign-in failed. Please try again.");
-  } finally {
-    setState(() => _isLoading = false);
   }
-}
+
+  Future<void> _signInWithEmail() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      final user = await _authService.signInWithEmail(
+        _emailController.text.trim(),
+        _passwordController.text.trim(),
+      );
+
+      if (user != null) {
+        await _navigateBasedOnUser(user.uid);
+      }
+    } catch (e) {
+      _showErrorDialog("Sign-in failed. Please try again.");
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
 
   Future<void> _signInWithGoogle() async {
-    setState(() {
-      _isLoading = true;
-    });
+    setState(() => _isLoading = true);
 
     try {
       final user = await _authService.signInWithGoogle();
@@ -213,63 +215,49 @@ Future<void> _signInWithEmail() async {
     } catch (e) {
       _showErrorDialog('Google sign-in failed. Please try again.');
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      setState(() => _isLoading = false);
     }
   }
 
-  
+  Future<void> _navigateBasedOnUser(String userId) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
 
-Future<void> _navigateBasedOnUser(String userId) async {
-  try {
-    final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        _showErrorDialog("No user found. Please sign in again.");
+        return;
+      }
 
-    if (user == null) {
-      _showErrorDialog("No user found. Please sign in again.");
-      return;
-    }
+      if (!user.emailVerified) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const EmailVerificationPage()),
+        );
+        return;
+      }
 
-    if (!user.emailVerified) {
-      debugPrint("User email not verified. Navigating to Email Verification Page.");
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (_) => const EmailVerificationPage(),
-        ),
-      );
-      return;
-    }
+      final isProfileComplete = await _authService.isProfileComplete(userId);
 
-    // Check if the profile is complete
-    final isProfileComplete = await _authService.isProfileComplete(userId);
-
-    if (!isProfileComplete) {
-      debugPrint("User profile incomplete. Navigating to Profile Setup Page.");
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (_) => ProfileSetupManager(
-            userId: userId,
-            onProfileComplete: _navigateToHomeTab,
+      if (!isProfileComplete) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (_) => ProfileSetupManager(
+              userId: userId,
+              onProfileComplete: _navigateToHomeTab,
+            ),
           ),
-        ),
-      );
-    } else {
-      debugPrint("User profile complete. Navigating to Home.");
-      _navigateToHomeTab();
+        );
+      } else {
+        _navigateToHomeTab();
+      }
+    } catch (e) {
+      _showErrorDialog("An error occurred. Please try again.");
     }
-  } catch (e) {
-    debugPrint("Error in _navigateBasedOnUser: $e");
-    _showErrorDialog("An error occurred. Please try again.");
   }
-}
-
-
 
   void _navigateToHomeTab() {
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(
-        builder: (_) => SplashScreenWithTabs(),
-      ),
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) =>  SplashScreenWithTabs()),
+      (route) => false, // Clear navigation stack
     );
   }
 

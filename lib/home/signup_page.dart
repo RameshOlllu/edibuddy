@@ -6,8 +6,6 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
-import 'otp_verification_page.dart';
-
 class SignUpPage extends StatefulWidget {
   const SignUpPage({Key? key}) : super(key: key);
 
@@ -22,7 +20,6 @@ class _SignUpPageState extends State<SignUpPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
-  final _mobileNumberController = TextEditingController();
 
   String? _gender;
   String? _workStatus;
@@ -30,14 +27,6 @@ class _SignUpPageState extends State<SignUpPage> {
   bool _updatesAndPromotions = false;
   bool _isLoading = false;
   bool _isEmailUnique = true;
-  bool _isMobileUnique = true;
-  bool _isVerifyButtonEnabled = false;
-  String? _otpCode;
-  String? _verificationId;
-  bool _isMobileVerified = false;
-
-  PhoneAuthCredential? _phoneCredential; // Store verified phone credential
-String? _oldPhoneNumber; // Store old phone number
 
 
   @override
@@ -58,8 +47,6 @@ String? _oldPhoneNumber; // Store old phone number
                       _buildHeader(theme),
                       const SizedBox(height: 40),
                       _buildSignUpForm(theme),
-                      const SizedBox(height: 24),
-                      _buildMobileVerificationSection(theme),
                       const SizedBox(height: 24),
                       _buildWorkStatus(theme),
                       const SizedBox(height: 32),
@@ -314,94 +301,11 @@ void _openFullScreenDialog(BuildContext context, String title) {
   }
 
 
-Widget _buildMobileVerificationSection(ThemeData theme) {
-  return Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      // Mobile Number Field with Label
-      Text(
-        'Mobile Number *',
-        style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
-      ),
-      const SizedBox(height: 8),
-      Row(
-        children: [
-          // Mobile Number Input Field
-          Expanded(
-            child: TextFormField(
-              controller: _mobileNumberController,
-              decoration: _getInputDecoration(theme, 'Enter your mobile number', isMandatory: false).copyWith(
-                prefixText: '+91 ',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                helperText: 'Recruiters will contact you on this number.',
-                helperStyle: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-              keyboardType: TextInputType.phone,
-              onChanged: (value) {
-                setState(() {
-                  // Enable button only for valid numbers
-                  _isVerifyButtonEnabled = RegExp(r'^[6-9]\d{9}$').hasMatch(value);
-                });
-              },
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Please enter your mobile number.';
-                }
-                if (!RegExp(r'^[6-9]\d{9}$').hasMatch(value)) {
-                  return 'Please enter a valid Indian mobile number.';
-                }
-                if (!_isMobileUnique) {
-                  return 'This mobile number is already registered.';
-                }
-                return null;
-              },
-            ),
-          ),
-          const SizedBox(width: 12),
-          // Verify Button
-          ElevatedButton(
-            onPressed: _isVerifyButtonEnabled
-                ? () async {
-                    if (_mobileNumberController.text.isNotEmpty) {
-                      await _startOtpVerification();
-                    }
-                  }
-                : null,
-           
-            child: const Text('Verify'),
-          ),
-        ],
-      ),
-      const SizedBox(height: 16),
-
-      // Verified Status Message
-      if (_isMobileVerified)
-        Row(
-          children: [
-            const Icon(Icons.check_circle, color: Colors.green, size: 20),
-            const SizedBox(width: 8),
-            Text(
-              'Mobile number verified!',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: Colors.green,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
-    ],
-  );
-}
-
   Widget _buildSignUpButton(ThemeData theme) {
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton(
-        onPressed: (_isMobileVerified && _agreeToTerms && _formKey.currentState?.validate() == true)
+        onPressed: ( _agreeToTerms && _formKey.currentState?.validate() == true)
             ? _signUp
             : null,
         style: ElevatedButton.styleFrom(
@@ -426,28 +330,6 @@ Widget _buildMobileVerificationSection(ThemeData theme) {
   }
 
 
-Future<void> _startOtpVerification() async {
-  final phoneNumber = '+91${_mobileNumberController.text.trim()}';
-  Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (context) => OtpVerificationPage(
-        phoneNumber: phoneNumber,
-        onVerificationComplete: (isVerified, isMerged, otp) {
-          debugPrint('Test isMObile $_isMobileVerified otp $otp');
-          setState(() {
-            _isMobileVerified = isVerified;
-
-            // Store the OTP if verification was successful
-            if (isVerified && otp != null) {
-              _otpCode = otp;
-            }
-          });
-        },
-      ),
-    ),
-  );
-}
 
 
   Future<void> _selectDateOfBirth() async {
@@ -474,8 +356,8 @@ Future<void> _startOtpVerification() async {
   }
 
 Future<void> _signUp() async {
-  if (!_formKey.currentState!.validate() || !_isMobileVerified) {
-    _showErrorDialog('Please complete the form and verify your mobile number.');
+  if (!_formKey.currentState!.validate()) {
+    _showErrorDialog('Please complete the form');
     return;
   }
 
@@ -490,14 +372,8 @@ Future<void> _signUp() async {
     final user = credential.user;
     if (user == null) throw FirebaseAuthException(code: 'user-null');
 
-    // Link phone credential if OTP is available
-    if (_otpCode != null && _verificationId != null) {
-      final phoneCredential = PhoneAuthProvider.credential(
-        verificationId: _verificationId!,
-        smsCode: _otpCode!, // Use the stored OTP
-      );
-      await user.linkWithCredential(phoneCredential); // Merge accounts
-    }
+    // Send email verification immediately after account creation
+    await user.sendEmailVerification();
 
     // Add user details to Firestore
     final dobTimestamp = Timestamp.fromDate(
@@ -514,7 +390,6 @@ Future<void> _signUp() async {
         'dob': dobTimestamp,
         'gender': _gender,
         'email': _emailController.text.trim(),
-        'mobileNumber': '+91 ${_mobileNumberController.text.trim()}', // Store verified number
         'workStatus': _workStatus,
       },
     });

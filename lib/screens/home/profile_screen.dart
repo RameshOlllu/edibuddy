@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:intl/intl.dart';
+import '../profilesetup/add_experience_screen.dart';
+import 'experience_overview.dart';
 // import 'package:url_launcher/url_launcher.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -37,41 +39,44 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-String calculateTotalExperience() {
-  if (userData == null || userData!['experienceDetails'] == null) return '0y 0m';
+  String calculateTotalExperience() {
+    if (userData == null || userData!['experienceDetails'] == null)
+      return '0y 0m';
 
-  final experienceDetails = userData!['experienceDetails'] as List<dynamic>;
-  int totalMonths = 0;
+    final experienceDetails = userData!['experienceDetails'] as List<dynamic>;
+    int totalMonths = 0;
 
-  for (var exp in experienceDetails) {
-    if (exp is! Map<String, dynamic>) continue; // Skip invalid data
+    for (var exp in experienceDetails) {
+      if (exp is! Map<String, dynamic>) continue; // Skip invalid data
 
-    DateTime? startDate;
-    DateTime? endDate;
+      DateTime? startDate;
+      DateTime? endDate;
 
-    if (exp['startDate'] is Timestamp) {
-      startDate = (exp['startDate'] as Timestamp).toDate();
-    } else if (exp['startDate'] is String) {
-      startDate = DateTime.tryParse(exp['startDate']);
+      if (exp['startDate'] is Timestamp) {
+        startDate = (exp['startDate'] as Timestamp).toDate();
+      } else if (exp['startDate'] is String) {
+        startDate = DateTime.tryParse(exp['startDate']);
+      }
+
+      if (exp['isCurrentlyWorking'] == true) {
+        endDate = DateTime.now();
+      } else if (exp['endDate'] is Timestamp) {
+        endDate = (exp['endDate'] as Timestamp).toDate();
+      } else if (exp['endDate'] is String) {
+        endDate = DateTime.tryParse(exp['endDate']);
+      }
+
+      if (startDate == null || endDate == null)
+        continue; // Skip if dates are invalid
+
+      totalMonths += ((endDate.year - startDate.year) * 12) +
+          (endDate.month - startDate.month);
     }
 
-    if (exp['isCurrentlyWorking'] == true) {
-      endDate = DateTime.now();
-    } else if (exp['endDate'] is Timestamp) {
-      endDate = (exp['endDate'] as Timestamp).toDate();
-    } else if (exp['endDate'] is String) {
-      endDate = DateTime.tryParse(exp['endDate']);
-    }
-
-    if (startDate == null || endDate == null) continue; // Skip if dates are invalid
-
-    totalMonths += ((endDate.year - startDate.year) * 12) + (endDate.month - startDate.month);
+    int years = totalMonths ~/ 12;
+    int months = totalMonths % 12;
+    return '${years}y ${months}m';
   }
-
-  int years = totalMonths ~/ 12;
-  int months = totalMonths % 12;
-  return '${years}y ${months}m';
-}
 
   @override
   Widget build(BuildContext context) {
@@ -95,7 +100,7 @@ String calculateTotalExperience() {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                 // _buildProfileHeader(context),
+                  // _buildProfileHeader(context),
                   // SizedBox(height: 24),
                   // _buildTotalExperience(context),
                   SizedBox(height: 24),
@@ -119,26 +124,50 @@ String calculateTotalExperience() {
     );
   }
 
-Widget _buildSliverAppBar(BuildContext context) {
-  return SliverAppBar(
-    expandedHeight: 160, // Adjusted height to accommodate the profile header
-    floating: false,
-    pinned: true,
-    flexibleSpace: FlexibleSpaceBar(
-      background: _buildProfileHeader(context, isSliver: true), // Embed profile header
-    ),
-  );
-}
+  Widget _buildSliverAppBar(BuildContext context) {
+    return SliverAppBar(
+      expandedHeight: 160, // Adjusted height to accommodate the profile header
+      floating: false,
+      pinned: true,
+      flexibleSpace: FlexibleSpaceBar(
+        background: _buildProfileHeader(context,
+            isSliver: true), // Embed profile header
+      ),
+    );
+  }
 
 Widget _buildProfileHeader(BuildContext context, {bool isSliver = false}) {
+  // Fetch experience details safely
   final experienceDetails = userData?['experienceDetails'] as List<dynamic>? ?? [];
-  final currentJob = experienceDetails.isNotEmpty
-      ? experienceDetails.firstWhere(
-          (exp) => exp is Map<String, dynamic> && exp['isCurrentlyWorking'] == true,
-          orElse: () => null,
-        )
-      : null;
 
+  // Find the current job
+  Map<String, dynamic>? currentJob = experienceDetails
+      .whereType<Map<String, dynamic>>() // Safely filter valid Map<String, dynamic> items
+      .firstWhere(
+        (exp) => exp['isCurrentlyWorking'] == true,
+        orElse: () => {}, // Return null if no current job found
+      );
+ debugPrint(experienceDetails.toString())
+;  // If no current job, pick the first record ordered by start date
+  if (currentJob.isEmpty) {
+
+    final sortedExperiences = experienceDetails
+        .whereType<Map<String, dynamic>>() // Safely filter valid Map<String, dynamic> items
+        .where((exp) => exp['startDate'] != null)
+        .toList()
+      ..sort((a, b) {
+        final aStartDate = a['startDate'] is Timestamp
+            ? (a['startDate'] as Timestamp).toDate()
+            : DateTime.tryParse(a['startDate']) ?? DateTime.now();
+        final bStartDate = b['startDate'] is Timestamp
+            ? (b['startDate'] as Timestamp).toDate()
+            : DateTime.tryParse(b['startDate']) ?? DateTime.now();
+        return aStartDate.compareTo(bStartDate);
+      });
+    currentJob = sortedExperiences.isNotEmpty ? sortedExperiences.first : null;
+  }
+
+  // Fetch location details
   final location = userData?['locationDetails']?['currentLocation'] as Map<String, dynamic>?;
 
   return Container(
@@ -169,21 +198,24 @@ Widget _buildProfileHeader(BuildContext context, {bool isSliver = false}) {
                 userData?['photoURL'] ?? '',
               ),
             ),
-            SizedBox(width: 16),
+            const SizedBox(width: 16),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Full Name
                   Text(
                     userData?['basicDetails']?['fullName'] ?? '',
                     style: isSliver
                         ? Theme.of(context).textTheme.bodyLarge?.copyWith(color: Colors.white)
                         : Theme.of(context).textTheme.headlineMedium,
                   ),
+                  // Current Job and Experience
                   if (currentJob != null) ...[
-                    SizedBox(height: 4),
+                    const SizedBox(height: 4),
                     Row(
                       children: [
+                        // Current Job Title
                         Text(
                           currentJob['jobTitle'] ?? '',
                           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -192,12 +224,9 @@ Widget _buildProfileHeader(BuildContext context, {bool isSliver = false}) {
                                     : Theme.of(context).colorScheme.onSurface,
                               ),
                         ),
-                        Text('  |  ',
-                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                  color: isSliver
-                                      ? Colors.white70
-                                      : Theme.of(context).colorScheme.onSurface,
-                                )),
+                        // Separator
+                        const Text('  |  '),
+                        // Total Experience
                         Text(
                           calculateTotalExperience(),
                           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -209,13 +238,14 @@ Widget _buildProfileHeader(BuildContext context, {bool isSliver = false}) {
                       ],
                     ),
                   ],
-                  SizedBox(height: 4),
+                  // Location Details
                   if (location != null) ...[
+                    const SizedBox(height: 4),
                     Row(
                       children: [
                         Icon(Icons.location_on,
                             size: 16, color: isSliver ? Colors.white70 : null),
-                        SizedBox(width: 4),
+                        const SizedBox(width: 4),
                         Text(
                           '${location['name']}, ${location['region']}',
                           style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -227,7 +257,8 @@ Widget _buildProfileHeader(BuildContext context, {bool isSliver = false}) {
                       ],
                     ),
                   ],
-                  SizedBox(height: 4),
+                  // Current Package
+                  const SizedBox(height: 4),
                   Text(
                     '₹${userData?['jobPreferences']?['currentPackage'] ?? '0'}/year',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -248,108 +279,186 @@ Widget _buildProfileHeader(BuildContext context, {bool isSliver = false}) {
 }
 
 
-Widget _buildExperienceSection(BuildContext context) {
-  final experiences = userData!['experienceDetails'];
-  return Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Text(
-        'Experience',
-       style: Theme.of(context).textTheme.bodyLarge!.copyWith(fontWeight: FontWeight.bold),
+  Widget _buildExperienceSection(BuildContext context) {
+    List<Map<String, dynamic>> experiences =
+        List<Map<String, dynamic>>.from(userData!['experienceDetails']);
+
+    // Sort by most recent or current experience
+    experiences.sort((a, b) {
+      final DateTime aEndDate = a['isCurrentlyWorking'] == true
+          ? DateTime.now()
+          : a['endDate'] is Timestamp
+              ? (a['endDate'] as Timestamp).toDate()
+              : DateTime.tryParse(a['endDate']) ?? DateTime.now();
+      final DateTime bEndDate = b['isCurrentlyWorking'] == true
+          ? DateTime.now()
+          : b['endDate'] is Timestamp
+              ? (b['endDate'] as Timestamp).toDate()
+              : DateTime.tryParse(b['endDate']) ?? DateTime.now();
+      return bEndDate.compareTo(aEndDate);
+    });
+
+    // Limit to top 2 experiences
+    final limitedExperiences = experiences.take(2).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'Experience',
+              style: Theme.of(context)
+                  .textTheme
+                  .bodyLarge!
+                  .copyWith(fontWeight: FontWeight.bold),
+            ),
+            TextButton.icon(
+              onPressed: () async {
+                final updatedExperiences = await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => ExperienceOverviewScreen(
+                      userId: widget.userId,
+                      experiences: experiences,
+                    ),
+                  ),
+                );
+
+                if (updatedExperiences != null) {
+                  setState(() {
+                    userData!['experienceDetails'] = updatedExperiences;
+                  });
+                }
+              },
+              icon: const Icon(Icons.add),
+              label: const Text('Add'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        ...limitedExperiences.map((exp) {
+          return _buildExperienceCard(exp, context);
+        }),
+        if (experiences.length >
+            2) // Show 'View More' if there are more experiences
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+  onPressed: () async {
+    final updatedExperiences = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ExperienceOverviewScreen(
+          userId: widget.userId,
+          experiences: List<Map<String, dynamic>>.from(
+            userData?['experienceDetails'] ?? [],
+          ),
+        ),
       ),
-      SizedBox(height: 16),
-      ...experiences.map<Widget>((exp) {
-        // Safely parse startDate
-        DateTime? startDate;
-        if (exp['startDate'] is Timestamp) {
-          startDate = (exp['startDate'] as Timestamp).toDate();
-        } else if (exp['startDate'] is String) {
-          startDate = DateTime.tryParse(exp['startDate']);
-        }
+    );
 
-        // Safely parse endDate
-        DateTime? endDate;
-        if (exp['isCurrentlyWorking'] == true) {
-          endDate = DateTime.now();
-        } else if (exp['endDate'] is Timestamp) {
-          endDate = (exp['endDate'] as Timestamp).toDate();
-        } else if (exp['endDate'] is String) {
-          endDate = DateTime.tryParse(exp['endDate']);
-        }
+    if (updatedExperiences != null) {
+      setState(() {
+        userData!['experienceDetails'] = updatedExperiences;
+      });
+    }
+  },
+  child: const Text(
+    'View More',
+    style: TextStyle(fontWeight: FontWeight.bold),
+  ),
+),
 
-        // Handle invalid dates
-        if (startDate == null || endDate == null) {
-          return SizedBox.shrink(); // Skip rendering this experience
-        }
 
-        return Card(
-          elevation: 3,
-          margin: EdgeInsets.symmetric(vertical: 8),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
+          ),
+      ],
+    );
+  }
+
+  Widget _buildExperienceCard(Map<String, dynamic> exp, BuildContext context) {
+    // Safely parse dates
+    final startDate = exp['startDate'] is Timestamp
+        ? (exp['startDate'] as Timestamp).toDate()
+        : DateTime.tryParse(exp['startDate']) ?? DateTime.now();
+
+    final endDate = exp['isCurrentlyWorking'] == true
+        ? DateTime.now()
+        : exp['endDate'] is Timestamp
+            ? (exp['endDate'] as Timestamp).toDate()
+            : DateTime.tryParse(exp['endDate']) ?? DateTime.now();
+
+    return Card(
+      elevation: 3,
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Job Title and Institution Name
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Icon Placeholder for Company
-                    Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: Colors.grey[200],
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Icon(Icons.apartment, color: Colors.grey[600]),
-                    ),
-                    SizedBox(width: 16),
-                    // Job Details
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            exp['jobTitle'],
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleMedium
-                                ?.copyWith(fontWeight: FontWeight.bold),
-                          ),
-                          SizedBox(height: 4),
-                          Text(
-                            exp['institutionName'],
-                            style: Theme.of(context).textTheme.bodyMedium,
-                          ),
-                        ],
-                      ),
-                    ),
-                    // Badge for Current or Past
-                    Container(
-                      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: exp['isCurrentlyWorking'] == true
-                            ? Colors.green.withOpacity(0.1)
-                            : Colors.grey.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        exp['isCurrentlyWorking'] == true ? 'Current' : 'Past',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: exp['isCurrentlyWorking'] == true
-                                  ? Colors.green
-                                  : Colors.grey[600],
-                              fontWeight: FontWeight.bold,
-                            ),
-                      ),
-                    ),
-                  ],
+                // Icon Placeholder for Company
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[200],
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(Icons.apartment, color: Colors.grey[600]),
                 ),
-                SizedBox(height: 16),
-                // Job Role and Industry
-                if (exp['jobRole'] != null && (exp['jobRole'] as List).isNotEmpty) ...[
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        exp['jobTitle'],
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleMedium
+                            ?.copyWith(fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        exp['institutionName'],
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                    ],
+                  ),
+                ),
+                // Badge for Current or Past
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: exp['isCurrentlyWorking'] == true
+                        ? Colors.green.withOpacity(0.1)
+                        : Colors.grey.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    exp['isCurrentlyWorking'] == true ? 'Current' : 'Past',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: exp['isCurrentlyWorking'] == true
+                              ? Colors.green
+                              : Colors.grey[600],
+                          fontWeight: FontWeight.bold,
+                        ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            // Job Roles
+            if (exp['jobRole'] != null && (exp['jobRole'] as List).isNotEmpty)
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                   Text(
                     'Job roles',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -360,360 +469,325 @@ Widget _buildExperienceSection(BuildContext context) {
                     (exp['jobRole'] as List).join(' • '),
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
-                  SizedBox(height: 8),
                 ],
-                if (exp['industry'] != null) ...[
-                  Text(
-                    'Industry',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Colors.grey[600],
-                        ),
+              ),
+            const SizedBox(height: 8),
+            // Dates
+            Text(
+              '${DateFormat('MMM yyyy').format(startDate)} - ${exp['isCurrentlyWorking'] == true ? 'Present' : DateFormat('MMM yyyy').format(endDate)}',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    fontWeight: FontWeight.bold,
                   ),
-                  Text(
-                    exp['industry'],
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                  SizedBox(height: 8),
-                ],
-                // Description Placeholder
-                Text(
-                  'Add a description of your role to provide more details',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Colors.grey[400],
-                        fontStyle: FontStyle.italic,
-                      ),
-                ),
-                SizedBox(height: 16),
-                // Skills Section
-                if (exp['skills'] != null && (exp['skills'] as List).isNotEmpty) ...[
-                  Text(
-                    'Skills',
-                       style: Theme.of(context).textTheme.bodyLarge!.copyWith(fontWeight: FontWeight.bold),
-                  ),
-                  SizedBox(height: 1),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 0,
-                    children: (exp['skills'] as List).map<Widget>((skill) {
-                      return Chip(
-                        label: Text(
-                          skill,
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                        backgroundColor: Theme.of(context)
-                            .primaryColor
-                            .withOpacity(0.1),
-                      );
-                    }).toList(),
-                  ),
-                  SizedBox(height: 16),
-                ],
-                // Start Date - End Date
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      '${DateFormat('MMM yyyy').format(startDate)} - ${exp['isCurrentlyWorking'] == true ? 'Present' : DateFormat('MMM yyyy').format(endDate)}',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
-                    ),
-                  ],
-                ),
-              ],
             ),
-          ),
-        );
-      }).toList(),
-    ],
-  );
-}
-
-Widget _buildEducationSection(BuildContext context) {
-  final education = userData!['educationDetails'];
-  return Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Text(
-        'Education',
-        style: Theme.of(context).textTheme.bodyLarge!.copyWith(fontWeight: FontWeight.bold),
+          ],
+        ),
       ),
-      SizedBox(height: 16),
-      ...education.map<Widget>((edu) {
-        final bool isPursuing = edu['isPursuing'] == true;
+    );
+  }
 
-        return Card(
-          elevation: 3,
-          margin: EdgeInsets.symmetric(vertical: 8),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Degree and Institution
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    // Icon Placeholder for Degree
-                    Container(
-                      width: 50,
-                      height: 50,
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.surfaceVariant,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Icon(Icons.school,
-                          color: Theme.of(context).colorScheme.onSurface),
-                    ),
-                    SizedBox(width: 16),
-                    // Degree and Institution
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            edu['degree'],
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleMedium
-                                ?.copyWith(fontWeight: FontWeight.bold),
-                          ),
-                          SizedBox(height: 4),
-                          Text(
-                            edu['collegeName'],
-                            style: Theme.of(context).textTheme.bodyMedium,
-                          ),
-                        ],
-                      ),
-                    ),
-                    // Status Badge
-                    Container(
-                      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: isPursuing
-                            ? Theme.of(context).colorScheme.secondaryContainer
-                            : Theme.of(context).colorScheme.primaryContainer,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        isPursuing ? 'Pursuing' : 'Completed',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: isPursuing
-                                  ? Theme.of(context)
-                                      .colorScheme
-                                      .onSecondaryContainer
-                                  : Theme.of(context)
-                                      .colorScheme
-                                      .onPrimaryContainer,
-                              fontWeight: FontWeight.bold,
-                            ),
-                      ),
-                    ),
-                  ],
-                ),
-               // SizedBox(height: 16),
+  Widget _buildEducationSection(BuildContext context) {
+    final education = userData!['educationDetails'];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Education',
+          style: Theme.of(context)
+              .textTheme
+              .bodyLarge!
+              .copyWith(fontWeight: FontWeight.bold),
+        ),
+        SizedBox(height: 16),
+        ...education.map<Widget>((edu) {
+          final bool isPursuing = edu['isPursuing'] == true;
 
-                // Specialization as a Badge
-                // Wrap(
-                //   spacing: 8,
-                //   runSpacing: 8,
-                //   children: [
-                //     Chip(
-                //       label: Text(
-                //         edu['specialization'],
-                //         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                //               fontWeight: FontWeight.bold,
-                //               color:
-                //                   Theme.of(context).colorScheme.onPrimaryContainer,
-                //             ),
-                //       ),
-                //       backgroundColor:
-                //           Theme.of(context).colorScheme.primaryContainer,
-                //     ),
-                //   ],
-                // ),
-                SizedBox(height: 16),
-
-                // Completion Year and School Medium
-                Row(
-                  children: [
-                    // Completion Year
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Completion Year',
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .onSurfaceVariant,
-                                ),
-                          ),
-                          SizedBox(height: 4),
-                          Text(
-                            edu['completionYear'],
-                            style: Theme.of(context).textTheme.bodyMedium,
-                          ),
-                        ],
-                      ),
-                    ),
-                    // School Medium
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'School Medium',
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .onSurfaceVariant,
-                                ),
-                          ),
-                          SizedBox(height: 4),
-                          Text(
-                            edu['schoolMedium'],
-                            style: Theme.of(context).textTheme.bodyMedium,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                SizedBox(height: 16),
-
-                // Highlighted Highest Education Level
-                Row(
-                  children: [
-                    Container(
-                      padding:
-                          EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.tertiaryContainer,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        edu['highestEducationLevel'],
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onTertiaryContainer,
-                              fontWeight: FontWeight.bold,
-                            ),
-                      ),
-                    ),
-                    SizedBox(width: 10,),
-                    Container(
-                      padding:
-                          EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.tertiaryContainer,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        edu['specialization'],
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onTertiaryContainer,
-                              fontWeight: FontWeight.bold,
-                            ),
-                      ),
-                    ),
-                   
-                  ],
-                ),
-              ],
-            ),
-          ),
-        );
-      }).toList(),
-    ],
-  );
-}
-
-Widget _buildAwardsSection(BuildContext context) {
-  final awards = userData!['awards'];
-  return Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Text(
-        'Awards & Achievements',
-        style: Theme.of(context).textTheme.bodyLarge!.copyWith(fontWeight: FontWeight.bold),
-      ),
-      SizedBox(height: 16),
-      ...awards.map<Widget>((award) {
-        // Safely parse receivedDate
-        DateTime? receivedDate;
-        if (award['receivedDate'] is Timestamp) {
-          receivedDate = (award['receivedDate'] as Timestamp).toDate();
-        } else if (award['receivedDate'] is String) {
-          receivedDate = DateTime.tryParse(award['receivedDate']);
-        }
-
-        // Handle invalid dates
-        if (receivedDate == null) {
-          return SizedBox.shrink(); // Skip rendering this award
-        }
-
-        return Card(
-          elevation: 3,
-          margin: EdgeInsets.symmetric(vertical: 8),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Row(
-              children: [
-                // Icon for Award
-                Container(
-                  width: 50,
-                  height: 50,
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.surfaceVariant,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(
-                    Icons.emoji_events, // Icon representing an award
-                    color: Theme.of(context).colorScheme.onSurface,
-                  ),
-                ),
-                SizedBox(width: 16),
-                Expanded(
+          return Stack(
+            children: [
+              Card(
+                elevation: 3,
+                margin: EdgeInsets.symmetric(vertical: 8),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8)),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Award Title
-                      Text(
-                        award['title'],
-                        style: Theme.of(context)
-                            .textTheme
-                            .bodyLarge
-                         
+                      // Degree and Institution
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          // Icon Placeholder for Degree
+                          Container(
+                            width: 50,
+                            height: 50,
+                            decoration: BoxDecoration(
+                              color:
+                                  Theme.of(context).colorScheme.surfaceVariant,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Icon(Icons.school,
+                                color: Theme.of(context).colorScheme.onSurface),
+                          ),
+                          SizedBox(width: 16),
+                          // Degree and Institution
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  edu['degree'],
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .titleMedium
+                                      ?.copyWith(fontWeight: FontWeight.bold),
+                                ),
+                                SizedBox(height: 4),
+                                Text(
+                                  edu['collegeName'],
+                                  style: Theme.of(context).textTheme.bodyMedium,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
-                      SizedBox(height: 2),
-                      // Award Organization
-                      Text(
-                        award['organization'],
-                        style: Theme.of(context).textTheme.bodyMedium,
+                      SizedBox(height: 16),
+
+                      // Completion Year and School Medium
+                      Row(
+                        children: [
+                          // Completion Year
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Completion Year',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .labelSmall
+                                      ?.copyWith(
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .onSurfaceVariant,
+                                      ),
+                                ),
+                                SizedBox(height: 4),
+                                Text(
+                                  edu['completionYear'],
+                                  style: Theme.of(context).textTheme.labelSmall,
+                                ),
+                              ],
+                            ),
+                          ),
+                          // School Medium
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'School Medium',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .bodySmall
+                                      ?.copyWith(
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .onSurfaceVariant,
+                                      ),
+                                ),
+                                SizedBox(height: 4),
+                                Text(
+                                  edu['schoolMedium'],
+                                  style: Theme.of(context).textTheme.bodyMedium,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
-                      SizedBox(height: 8),
-                      // Description (if available)
-                      if (award['description'] != null)
-                        Text(
-                          award['description'],
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodySmall
-                              ?.copyWith(color: Colors.grey[600]),
-                        ),
+                      SizedBox(height: 16),
+
+                      // Highlighted Highest Education Level
+                      Row(
+                        children: [
+                          Container(
+                            padding: EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .tertiaryContainer,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              edu['highestEducationLevel'],
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodyMedium
+                                  ?.copyWith(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onTertiaryContainer,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                            ),
+                          ),
+                          SizedBox(
+                            width: 10,
+                          ),
+                          Container(
+                            padding: EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .tertiaryContainer,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              edu['specialization'],
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodyMedium
+                                  ?.copyWith(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onTertiaryContainer,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ],
                   ),
                 ),
-                SizedBox(width: 16),
-                // Date Badge
-                Container(
+              ),
+              // Status Badge Positioned at the Top-Right Corner
+              Positioned(
+                top: 22,
+                right: 8,
+                child: Container(
+                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: isPursuing
+                        ? Theme.of(context).colorScheme.secondaryContainer
+                        : Theme.of(context).colorScheme.primaryContainer,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    isPursuing ? 'Pursuing' : 'Completed',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: isPursuing
+                              ? Theme.of(context)
+                                  .colorScheme
+                                  .onSecondaryContainer
+                              : Theme.of(context)
+                                  .colorScheme
+                                  .onPrimaryContainer,
+                          fontWeight: FontWeight.bold,
+                        ),
+                  ),
+                ),
+              ),
+            ],
+          );
+        }).toList(),
+      ],
+    );
+  }
+
+  Widget _buildAwardsSection(BuildContext context) {
+    final awards = userData!['awards'];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Awards & Achievements',
+          style: Theme.of(context)
+              .textTheme
+              .bodyLarge!
+              .copyWith(fontWeight: FontWeight.bold),
+        ),
+        SizedBox(height: 16),
+        ...awards.map<Widget>((award) {
+          // Safely parse receivedDate
+          DateTime? receivedDate;
+          if (award['receivedDate'] is Timestamp) {
+            receivedDate = (award['receivedDate'] as Timestamp).toDate();
+          } else if (award['receivedDate'] is String) {
+            receivedDate = DateTime.tryParse(award['receivedDate']);
+          }
+
+          // Handle invalid dates
+          if (receivedDate == null) {
+            return SizedBox.shrink(); // Skip rendering this award
+          }
+
+          return Stack(
+            children: [
+              Card(
+                elevation: 3,
+                margin: EdgeInsets.symmetric(vertical: 8),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8)),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Row(
+                    children: [
+                      // Icon for Award
+                      Container(
+                        width: 50,
+                        height: 50,
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.surfaceVariant,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Icon(
+                          Icons.emoji_events, // Icon representing an award
+                          color: Theme.of(context).colorScheme.onSurface,
+                        ),
+                      ),
+                      SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Award Title
+                            Text(
+                              award['title'],
+                              style: Theme.of(context).textTheme.bodyLarge,
+                            ),
+                            SizedBox(height: 2),
+                            // Award Organization
+                            Text(
+                              award['organization'],
+                              style: Theme.of(context).textTheme.bodyMedium,
+                            ),
+                            SizedBox(height: 8),
+                            // Description (if available)
+                            if (award['description'] != null)
+                              Text(
+                                award['description'],
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodySmall
+                                    ?.copyWith(color: Colors.grey[600]),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              // Date Badge Positioned at the Top-Right Corner
+              Positioned(
+                top: 22,
+                right: 8,
+                child: Container(
                   padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
                     color: Theme.of(context).colorScheme.primaryContainer,
@@ -721,105 +795,114 @@ Widget _buildAwardsSection(BuildContext context) {
                   ),
                   child: Text(
                     DateFormat('MMM yyyy').format(receivedDate),
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context).colorScheme.onPrimaryContainer,
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color:
+                              Theme.of(context).colorScheme.onPrimaryContainer,
                           fontWeight: FontWeight.bold,
                         ),
                   ),
                 ),
+              ),
+            ],
+          );
+        }).toList(),
+      ],
+    );
+  }
+
+  Widget _buildLanguageSection(BuildContext context) {
+    final languageDetails = userData!['languageDetails'];
+    final englishProficiency =
+        languageDetails['englishProficiency'] ?? 'Intermediate';
+    final otherLanguages =
+        List<String>.from(languageDetails['otherLanguages'] ?? []);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Languages',
+          style: Theme.of(context)
+              .textTheme
+              .bodyLarge!
+              .copyWith(fontWeight: FontWeight.bold),
+        ),
+        SizedBox(height: 16),
+        Card(
+          elevation: 3,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // English Proficiency
+                Text(
+                  'English Proficiency',
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleMedium
+                      ?.copyWith(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  englishProficiency,
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+                const Divider(height: 24, thickness: 1),
+
+                // Other Languages
+                Text(
+                  'Other Languages',
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleMedium
+                      ?.copyWith(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: otherLanguages.map((language) {
+                    return Chip(
+                      label: Text(
+                        language,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                      ),
+                      backgroundColor:
+                          Theme.of(context).colorScheme.primaryContainer,
+                      labelStyle: TextStyle(
+                        color: Theme.of(context).colorScheme.onPrimaryContainer,
+                      ),
+                    );
+                  }).toList(),
+                ),
               ],
             ),
           ),
-        );
-      }).toList(),
-    ],
-  );
-}
-
-Widget _buildLanguageSection(BuildContext context) {
-  final languageDetails = userData!['languageDetails'];
-  final englishProficiency = languageDetails['englishProficiency'] ?? 'Intermediate';
-  final otherLanguages = List<String>.from(languageDetails['otherLanguages'] ?? []);
-
-  return Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Text(
-        'Languages',
-             style: Theme.of(context).textTheme.bodyLarge!.copyWith(fontWeight: FontWeight.bold),
-      ),
-      SizedBox(height: 16),
-      Card(
-        elevation: 3,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // English Proficiency
-              Text(
-                'English Proficiency',
-                style: Theme.of(context)
-                    .textTheme
-                    .titleMedium
-                    ?.copyWith(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                englishProficiency,
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-              const Divider(height: 24, thickness: 1),
-
-              // Other Languages
-              Text(
-                'Other Languages',
-                style: Theme.of(context)
-                    .textTheme
-                    .titleMedium
-                    ?.copyWith(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: otherLanguages.map((language) {
-                  return Chip(
-                    label: Text(
-                      language,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
-                    ),
-                    backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-                    labelStyle: TextStyle(
-                      color: Theme.of(context).colorScheme.onPrimaryContainer,
-                    ),
-                  );
-                }).toList(),
-              ),
-            ],
-          ),
         ),
-      ),
-    ],
-  );
-}
+      ],
+    );
+  }
 
- 
   Widget _buildResumeSection(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           'Resume',
-      style: Theme.of(context).textTheme.bodyLarge!.copyWith(fontWeight: FontWeight.bold),
+          style: Theme.of(context)
+              .textTheme
+              .bodyLarge!
+              .copyWith(fontWeight: FontWeight.bold),
         ),
         SizedBox(height: 16),
         Card(
           child: InkWell(
-         //   onTap: () => launchUrl(Uri.parse(userData!['resumeUrl'])),
+            //   onTap: () => launchUrl(Uri.parse(userData!['resumeUrl'])),
             child: Padding(
               padding: EdgeInsets.all(16),
               child: Row(
@@ -842,121 +925,124 @@ Widget _buildLanguageSection(BuildContext context) {
     );
   }
 
- Widget _buildJobPreferencesSection(BuildContext context) {
-  final preferences = userData!['jobPreferences'];
+  Widget _buildJobPreferencesSection(BuildContext context) {
+    final preferences = userData!['jobPreferences'];
 
-  return Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Text(
-        'Job Preferences',
-      style: Theme.of(context).textTheme.bodyLarge!.copyWith(fontWeight: FontWeight.bold),
-      ),
-      SizedBox(height: 16),
-      Card(
-        elevation: 3,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Job Preferences',
+          style: Theme.of(context)
+              .textTheme
+              .bodyLarge!
+              .copyWith(fontWeight: FontWeight.bold),
+        ),
+        SizedBox(height: 16),
+        Card(
+          elevation: 3,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Expected Salary Section
+                _buildJobPreferenceRow(
+                  context,
+                  title: 'Expected Salary',
+                  value: '₹${preferences['expectedSalary']}/year',
+                  icon: Icons.currency_rupee_rounded,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                const Divider(height: 24, thickness: 1),
+
+                // Workplaces Section
+                _buildJobPreferenceRow(
+                  context,
+                  title: 'Preferred Workplaces',
+                  value: (preferences['workplaces'] as List).join(', '),
+                  icon: Icons.location_city_rounded,
+                  color: Theme.of(context).colorScheme.secondary,
+                ),
+                const Divider(height: 24, thickness: 1),
+
+                // Shifts Section
+                _buildJobPreferenceRow(
+                  context,
+                  title: 'Preferred Shifts',
+                  value: (preferences['shifts'] as List).join(', '),
+                  icon: Icons.schedule_rounded,
+                  color: Theme.of(context).colorScheme.tertiary,
+                ),
+                const Divider(height: 24, thickness: 1),
+
+                // Employment Types Section
+                _buildJobPreferenceRow(
+                  context,
+                  title: 'Employment Types',
+                  value: (preferences['employmentTypes'] as List).join(', '),
+                  icon: Icons.work_rounded,
+                  color: Theme.of(context).colorScheme.error,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildJobPreferenceRow(
+    BuildContext context, {
+    required String title,
+    required String value,
+    required IconData icon,
+    required Color color,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Icon
+        Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(
+            icon,
+            color: color,
+          ),
+        ),
+        SizedBox(width: 16),
+
+        // Title and Value
+        Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Expected Salary Section
-              _buildJobPreferenceRow(
-                context,
-                title: 'Expected Salary',
-                value: '₹${preferences['expectedSalary']}/year',
-                icon: Icons.currency_rupee_rounded,
-                color: Theme.of(context).colorScheme.primary,
+              Text(
+                title,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
               ),
-              const Divider(height: 24, thickness: 1),
-              
-              // Workplaces Section
-              _buildJobPreferenceRow(
-                context,
-                title: 'Preferred Workplaces',
-                value: (preferences['workplaces'] as List).join(', '),
-                icon: Icons.location_city_rounded,
-                color: Theme.of(context).colorScheme.secondary,
-              ),
-              const Divider(height: 24, thickness: 1),
-
-              // Shifts Section
-              _buildJobPreferenceRow(
-                context,
-                title: 'Preferred Shifts',
-                value: (preferences['shifts'] as List).join(', '),
-                icon: Icons.schedule_rounded,
-                color: Theme.of(context).colorScheme.tertiary,
-              ),
-              const Divider(height: 24, thickness: 1),
-
-              // Employment Types Section
-              _buildJobPreferenceRow(
-                context,
-                title: 'Employment Types',
-                value: (preferences['employmentTypes'] as List).join(', '),
-                icon: Icons.work_rounded,
-                color: Theme.of(context).colorScheme.error,
+              SizedBox(height: 4),
+              Text(
+                value,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                    ),
               ),
             ],
           ),
         ),
-      ),
-    ],
-  );
-}
-
-Widget _buildJobPreferenceRow(
-  BuildContext context, {
-  required String title,
-  required String value,
-  required IconData icon,
-  required Color color,
-}) {
-  final colorScheme = Theme.of(context).colorScheme;
-
-  return Row(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      // Icon
-      Container(
-        width: 40,
-        height: 40,
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Icon(
-          icon,
-          color: color,
-        ),
-      ),
-      SizedBox(width: 16),
-
-      // Title and Value
-      Expanded(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-            ),
-            SizedBox(height: 4),
-            Text(
-              value,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
-                  ),
-            ),
-          ],
-        ),
-      ),
-    ],
-  );
-}
-
+      ],
+    );
+  }
 }

@@ -176,88 +176,101 @@ class _AddExperienceScreenState extends State<AddExperienceScreen> {
     }
   }
 
-  Future<void> _saveExperience() async {
-    if (!_formKey.currentState!.saveAndValidate()) return;
+Future<void> _saveExperience() async {
+  if (!_formKey.currentState!.saveAndValidate()) return;
 
-    final formData = _formKey.currentState!.value;
-    final startDate = formData['startDate'] as DateTime;
-    final endDate = formData['isCurrentlyWorking']
-        ? null
-        : formData['endDate'] as DateTime;
+  final formData = _formKey.currentState!.value;
+  final startDate = formData['startDate'] as DateTime;
+  final endDate = formData['isCurrentlyWorking']
+      ? null
+      : formData['endDate'] as DateTime?;
 
-    if (!formData['isCurrentlyWorking'] &&
-        endDate != null &&
-        startDate.add(const Duration(days: 30)).isAfter(endDate)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("The duration between start and end dates must be at least one month."),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
+  if (!formData['isCurrentlyWorking'] && endDate == null) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text("End date is required if not currently working."),
+        backgroundColor: Colors.red,
+      ),
+    );
+    return;
+  }
 
-    if (startDate.isAfter(DateTime.now())) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("The start date cannot be in the future."),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
+  if (!formData['isCurrentlyWorking'] &&
+      endDate != null &&
+      startDate.add(const Duration(days: 30)).isAfter(endDate)) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text("The duration between start and end dates must be at least one month."),
+        backgroundColor: Colors.red,
+      ),
+    );
+    return;
+  }
 
-    final experience = {
-      'jobTitle': formData['jobTitle'],
-      'jobRole': selectedJobRoles,
-      'description': formData['description'],
-      'skills': selectedSkills,
-      'institutionName': formData['institutionName'],
-      'industry': formData['industry'],
-      'employmentType': selectedEmploymentType,
-      'isCurrentlyWorking': formData['isCurrentlyWorking'] ?? false,
-      'startDate': formData['startDate']?.toIso8601String(),
-      'endDate': formData['isCurrentlyWorking'] ? null : formData['endDate']?.toIso8601String(),
-    };
+  if (startDate.isAfter(DateTime.now())) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text("The start date cannot be in the future."),
+        backgroundColor: Colors.red,
+      ),
+    );
+    return;
+  }
 
-    try {
-      final userDoc = FirebaseFirestore.instance.collection('users').doc(widget.userId);
-      final userSnapshot = await userDoc.get();
+  final experience = {
+    'jobTitle': formData['jobTitle'],
+    'jobRole': selectedJobRoles,
+    'description': formData['description'],
+    'skills': selectedSkills,
+    'institutionName': formData['institutionName'],
+    'industry': formData['industry'],
+    'employmentType': selectedEmploymentType,
+    'isCurrentlyWorking': formData['isCurrentlyWorking'] ?? false,
+    'startDate': formData['startDate']?.toIso8601String(),
+    'endDate': formData['isCurrentlyWorking'] ? null : formData['endDate']?.toIso8601String(),
+  };
 
-      if (userSnapshot.exists) {
-        final experiences = List<Map<String, dynamic>>.from(userSnapshot.data()?['experienceDetails'] ?? []);
+  try {
+    final userDoc = FirebaseFirestore.instance.collection('users').doc(widget.userId);
+    final userSnapshot = await userDoc.get();
 
-        if (widget.existingExperience != null) {
-          final index = experiences.indexWhere((exp) =>
-              exp['jobTitle'] == widget.existingExperience!['jobTitle'] &&
-              exp['institutionName'] == widget.existingExperience!['institutionName']);
-          if (index != -1) {
-            experiences[index] = experience;
-          }
-        } else {
-          experiences.add(experience);
+    if (userSnapshot.exists) {
+      final experiences = List<Map<String, dynamic>>.from(userSnapshot.data()?['experienceDetails'] ?? []);
+
+      if (widget.existingExperience != null) {
+        final index = experiences.indexWhere((exp) =>
+            exp['jobTitle'] == widget.existingExperience!['jobTitle'] &&
+            exp['institutionName'] == widget.existingExperience!['institutionName']);
+        if (index != -1) {
+          experiences[index] = experience;
         }
+      } else {
+        experiences.add(experience);
+      }
 
-        await userDoc.update({'experienceDetails': experiences,'badges.experience': {
+      await userDoc.update({
+        'experienceDetails': experiences,
+        'badges.experience': {
           'earned': true,
           'earnedAt': FieldValue.serverTimestamp(),
-        },},);
-      } else {
-        await userDoc.set({'experienceDetails': [experience]});
-      }
-
-      if (mounted) {
-        Navigator.pop(context, true);
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text("Failed to save experience: $e"),
-          backgroundColor: Colors.red,
-        ),
-      );
+        },
+      });
+    } else {
+      await userDoc.set({'experienceDetails': [experience]});
     }
+
+    if (mounted) {
+      Navigator.pop(context, true);
+    }
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text("Failed to save experience: $e"),
+        backgroundColor: Colors.red,
+      ),
+    );
   }
+}
 
   @override
   Widget build(BuildContext context) {
@@ -380,38 +393,44 @@ class _AddExperienceScreenState extends State<AddExperienceScreen> {
                 ),
               ),
               const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: FormBuilderDateTimePicker(
-                      name: 'startDate',
-                      decoration: InputDecoration(
-                        labelText: 'Start Date',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      inputType: InputType.date,
-                      validator: FormBuilderValidators.required(),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: FormBuilderDateTimePicker(
-                      name: 'endDate',
-                      decoration: InputDecoration(
-                        labelText: 'End Date',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      inputType: InputType.date,
-                      enabled: !isCurrentlyWorking,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
+            Row(
+  children: [
+    Expanded(
+      child: FormBuilderDateTimePicker(
+        name: 'startDate',
+        decoration: InputDecoration(
+          labelText: 'Start Date',
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+        inputType: InputType.date,
+        validator: FormBuilderValidators.required(),
+      ),
+    ),
+    const SizedBox(width: 16),
+    Expanded(
+      child: FormBuilderDateTimePicker(
+        name: 'endDate',
+        decoration: InputDecoration(
+          labelText: 'End Date',
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+        inputType: InputType.date,
+        enabled: !isCurrentlyWorking,
+        validator: (value) {
+          if (!isCurrentlyWorking && value == null) {
+            return 'End date is required if not currently working.';
+          }
+          return null;
+        },
+      ),
+    ),
+  ],
+),
+ const SizedBox(height: 16),
               FormBuilderSwitch(
                 name: 'isCurrentlyWorking',
                 initialValue: isCurrentlyWorking,

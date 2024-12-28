@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:lottie/lottie.dart';
 import '../../service/resume_serivce.dart';
+import 'congratulations_page.dart';
 
 class ResumeUploadScreen extends StatefulWidget {
   final String userId;
@@ -135,38 +136,27 @@ class _ResumeUploadScreenState extends State<ResumeUploadScreen> {
 
 void _completeProfile() async {
   if (uploadedFileUrl == null) {
-    _showSnackBar("Please upload your resume first!", isError: true);
+    if (mounted) {
+      _showSnackBar("Please upload your resume first!", isError: true);
+    }
     return;
   }
 
   try {
-    // Fetch user data from Firestore
     final userDoc = await FirebaseFirestore.instance
         .collection('users')
         .doc(widget.userId)
         .get();
 
-    if (!userDoc.exists) {
-      _showSnackBar(
-        "User data not found. Please try again.",
-        isError: true,
-      );
+    if (!userDoc.exists || userDoc.data() == null) {
+      if (mounted) {
+        _showSnackBar("User data not found. Please try again.", isError: true);
+      }
       return;
     }
 
-    final userData = userDoc.data();
-    if (userData == null) {
-      _showSnackBar(
-        "User data is null. Please try again.",
-        isError: true,
-      );
-      return;
-    }
-
-    // Retrieve badges
+    final userData = userDoc.data()!;
     final badges = userData['badges'] as Map<String, dynamic>? ?? {};
-
-    // List of required badge keys
     const requiredBadges = [
       'award',
       'basicdetails',
@@ -176,52 +166,20 @@ void _completeProfile() async {
       'resume',
     ];
 
-    // Check if required badges are earned
-    bool requiredBadgesEarned = requiredBadges.every((key) {
+    final requiredBadgesEarned = requiredBadges.every((key) {
       final badge = badges[key];
       return badge is Map<String, dynamic> && badge['earned'] == true;
     });
 
-    // Update user profile status based on required badges
     await _resumeService.updateUserProfileStatus(widget.userId, requiredBadgesEarned);
 
     if (mounted) {
       if (requiredBadgesEarned) {
-        widget.onProfileComplete();
-
-        // Show a success dialog
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (context) => Dialog(
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Lottie.asset('assets/animations/congratulations.json',
-                      repeat: false),
-                  const Text(
-                    "Congratulations!",
-                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-                  ),
-                  const Text(
-                    "Your profile setup is complete!",
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 24),
-                  ElevatedButton(
-                    onPressed: () {
-                      // Navigate back to the Home Screen in the Tab Bar
-                      Navigator.of(context).pop();
-                      if (mounted) {
-                        widget.onProfileComplete();
-                      }
-                    },
-                    child: const Text("Go to Home"),
-                  ),
-                ],
-              ),
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => CongratulationsPage(
+            
             ),
           ),
         );
@@ -234,16 +192,12 @@ void _completeProfile() async {
     }
   } catch (e) {
     if (mounted) {
-      _showSnackBar(
-        "Failed to complete profile. Please try again.",
-        isError: true,
-      );
+      _showSnackBar("Failed to complete profile. Please try again.", isError: true);
     }
     debugPrint("Error in _completeProfile: $e");
   }
 }
 
- 
 
   Widget _buildResumeCard() {
     final colorScheme = Theme.of(context).colorScheme;

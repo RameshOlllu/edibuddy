@@ -11,101 +11,76 @@ import 'profile_setup_manager.dart';
 import 'splash_screen_content.dart';
 
 class SplashScreenWithTabs extends StatefulWidget {
+  final int initialTabIndex;
+
+  const SplashScreenWithTabs({Key? key, this.initialTabIndex = 0})
+      : super(key: key);
+
   @override
   _SplashScreenWithTabsState createState() => _SplashScreenWithTabsState();
 }
 
 class _SplashScreenWithTabsState extends State<SplashScreenWithTabs> {
-  int _currentIndex = 0;
+  late int _currentIndex;
   bool _isLoading = true;
   bool _isLoggedIn = false;
   bool _isProfileComplete = false;
-  bool _hasNavigated = false; // To prevent multiple navigations
   String? userId;
   List<Widget> _pages = [];
 
   @override
   void initState() {
     super.initState();
+    _currentIndex =
+        widget.initialTabIndex; // Initialize to the provided tab index
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _checkAuthStatus(); // Ensures the navigation happens after the first frame
+      _checkAuthStatus();
     });
   }
 
-Future<void> _checkAuthStatus() async {
-  try {
-    final user = FirebaseAuth.instance.currentUser;
+  Future<void> _checkAuthStatus() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
 
-    if (user != null) {
-      debugPrint('User is logged in.');
+      if (user != null) {
+        debugPrint('User is logged in.');
 
-      if (!user.emailVerified) {
-        debugPrint('User email not verified. Navigating to Email Verification Page.');
-        if (mounted && !_hasNavigated) {
-          _hasNavigated = true;
-          Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute(builder: (_) => const EmailVerificationPage()),
-            (route) => false,
-          );
+        if (!user.emailVerified) {
+          debugPrint(
+              'User email not verified. Navigating to Email Verification Page.');
+          setState(() {
+            _isLoggedIn = true;
+            _isProfileComplete = false; // Assume profile setup is incomplete
+          });
+          return;
         }
-        return;
-      }
 
-      final isProfileComplete = await _checkProfileCompletion(user);
+        final isProfileComplete = await _checkProfileCompletion(user);
 
-      if (!isProfileComplete) {
-        debugPrint('User profile incomplete. Navigating to Profile Setup Page.');
-        if (mounted && !_hasNavigated) {
-          _hasNavigated = true;
-          Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute(
-              builder: (_) => ProfileSetupManager(
-                userId: user.uid,
-                onProfileComplete: _navigateToHome,
-              ),
-            ),
-            (route) => false,
-          );
-        }
-        return;
+        setState(() {
+          _isLoggedIn = true;
+          _isProfileComplete = isProfileComplete;
+          userId = user.uid;
+          _initializePages();
+        });
+      } else {
+        debugPrint('No user logged in. Showing default Splash Content.');
+        setState(() {
+          _isLoggedIn = false;
+          _isProfileComplete = false;
+          _initializePages();
+        });
       }
-
-      // If the user is logged in, verified, and profile is complete
-      setState(() {
-        _isLoggedIn = true;
-        _isProfileComplete = isProfileComplete;
-        userId = user.uid;
-        _initializePages();
-      });
-    } else {
-      debugPrint('No user logged in. Navigating to Sign In Page.');
-      if (mounted && !_hasNavigated) {
-        _hasNavigated = true;
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => const SignInPage()),
-          (route) => false,
-        );
+    } catch (e) {
+      debugPrint('Error checking auth status: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
       }
-    }
-  } catch (e) {
-    debugPrint('Error checking auth status: $e');
-  } finally {
-    if (mounted) {
-      setState(() {
-        _isLoading = false;
-      });
     }
   }
-}
-
-
-void _navigateToHome() {
-  Navigator.of(context).pushReplacement(
-    MaterialPageRoute(builder: (_) =>  SplashScreenWithTabs()),
-  );
-}
-
-
 
   Future<bool> _checkProfileCompletion(User user) async {
     try {
@@ -122,40 +97,45 @@ void _navigateToHome() {
     }
   }
 
- void _initializePages() {
-  debugPrint(
-      "SplashScreen _initializePages: _isLoggedIn $_isLoggedIn _isProfileComplete $_isProfileComplete");
-  _pages = [
-    // Jobs Tab
-    if (_isLoggedIn)
-      (_isProfileComplete
-          ? const HomeScreen() // Home Screen for logged-in users
-          : ProfileSetupManager(
-              userId: FirebaseAuth.instance.currentUser!.uid,
-              onProfileComplete: _onProfileComplete,
-            )),
-    if (!_isLoggedIn)
-      SplashContent(
-        image: 'assets/images/rec.png',
-        title: 'MADE WITH HEART',
-        subtitle: 'Simplifying recruitment smartly',
-        tagline: 'TO MAKE YOU A STAR',
-        buttonLabel: 'Get Started',
-        onButtonTap: _handleGetStarted,
-      ),
-    // Saved Jobs Tab
-    const Center(
-      child: Text(
-        'Saved Jobs',
-        style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-      ),
-    ),
-    // Quick Actions Tab
-    const QuickActionsTab(),
-    // Profile Tab
-    if (userId != null) ProfileScreen(userId: userId!),
-  ];
-}
+  void _initializePages() {
+    _pages = [
+      (_isLoggedIn && _isProfileComplete)
+          ? const HomeScreen()
+          : SplashContent(
+              image: 'assets/images/rec.png',
+              title: 'MADE WITH HEART',
+              subtitle: 'Simplifying recruitment smartly',
+              tagline: 'TO MAKE YOU A STAR',
+              buttonLabel: 'Get Started',
+              onButtonTap: _handleGetStarted,
+            ),
+      if (_isLoggedIn)
+        (_isProfileComplete
+            ? const HomeScreen()
+            : ProfileSetupManager(
+                userId: FirebaseAuth.instance.currentUser!.uid,
+                onProfileComplete: _onProfileComplete,
+              )),
+      if (_isLoggedIn)
+        QuickActionsTab()
+      else
+        const Center(
+          child: Text(
+            'Please log in to access your profile.',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+        ),
+      if (_isLoggedIn)
+        ProfileScreen(userId: userId ?? '')
+      else
+        const Center(
+          child: Text(
+            'Please log in to access your profile.',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+        ),
+    ];
+  }
 
   void _handleGetStarted() {
     if (!_isLoggedIn) {
@@ -163,18 +143,18 @@ void _navigateToHome() {
         MaterialPageRoute(builder: (_) => const SignInPage()),
       );
     } else if (!_isProfileComplete) {
-      setState(() {
-        _currentIndex = 0;
-        _pages[0] = ProfileSetupManager(
-          userId: FirebaseAuth.instance.currentUser!.uid,
-          onProfileComplete: _onProfileComplete,
-        );
-      });
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) => ProfileSetupManager(
+            userId: FirebaseAuth.instance.currentUser!.uid,
+            onProfileComplete: _onProfileComplete,
+          ),
+        ),
+      );
     } else {
-      setState(() {
-        _currentIndex = 0;
-        _pages[0] = const HomeScreen();
-      });
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const HomeScreen()),
+      );
     }
   }
 
@@ -188,23 +168,21 @@ void _navigateToHome() {
 
   void _onTabTapped(int index) {
     if (!_isLoggedIn) {
-      Navigator.of(context).pushReplacement(
+      // Navigate to SignInPage if user is not logged in and tries to access Profile tab
+      Navigator.of(context).push(
         MaterialPageRoute(builder: (_) => const SignInPage()),
       );
       return;
     }
 
-    final user = FirebaseAuth.instance.currentUser;
-    if (user != null && !user.emailVerified) {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const EmailVerificationPage()),
-      );
-      return;
+    // Ensure index is within bounds of _pages
+    if (index < _pages.length) {
+      setState(() {
+        _currentIndex = index;
+      });
+    } else {
+      debugPrint('Invalid tab index: $index');
     }
-
-    setState(() {
-      _currentIndex = index;
-    });
   }
 
   @override
