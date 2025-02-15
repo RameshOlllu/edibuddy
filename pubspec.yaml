@@ -40,6 +40,8 @@ dependencies:
   google_fonts: ^6.2.1
   image_picker: ^1.1.2
   cached_network_image: ^3.4.1
+  firebase_app_check: ^0.3.1+7
+  url_launcher: ^6.3.1
 
 dev_dependencies:
   flutter_test:
@@ -71,4 +73,6 @@ flutter:
     - assets/animations/
     - assets/icons/
     - assets/logo.svg
+    - assets/data/india_locations.json
+    - assets/icons/edibuddylogo.png
 

@@ -1,5 +1,9 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../model/location_model.dart';
+import '../widgets/location_selector.dart';
+import 'employee_job_details_page.dart';
 import 'job_details_page.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -12,7 +16,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final ScrollController _scrollController = ScrollController();
   bool _isSearchBarPinned = false;
-
+LocationModel? _selectedLocation;
   @override
   void initState() {
     super.initState();
@@ -32,6 +36,18 @@ class _HomeScreenState extends State<HomeScreen> {
       setState(() => _isSearchBarPinned = false);
     }
   }
+
+void _updateLocation(LocationModel? location) {
+  if (location != null) {
+    setState(() {
+      _selectedLocation = location;
+    });
+
+    debugPrint("Selected Location Updated in HomeScreen: $_selectedLocation"); // ✅ Debugging
+  }
+}
+
+
 
 @override
 Widget build(BuildContext context) {
@@ -54,6 +70,7 @@ Widget build(BuildContext context) {
                     _buildFiltersSection(theme),
                     _buildQuickActions(theme),
                     _buildDepartments(theme),
+                    _buildRecentJobsSection(),
                     _buildFeaturedJobs(theme),
                     _buildRecentJobListings(theme),
                   ],
@@ -75,79 +92,88 @@ Widget build(BuildContext context) {
         children: [
           Row(
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  // Logo circle with 'e'
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          Color(0xFFFF6B9B), // Pink
-                          Color(0xFF6E40C9), // Purple
-                        ],
-                      ),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Stack(
-                      children: [
-                        // Dots decoration
-                        Positioned(
-                          top: 2,
-                          right: 2,
-                          child: Container(
-                            width: 6,
-                            height: 6,
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.7),
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                        ),
-                        Center(
-                          child: Text(
-                            'e',
-                            style: GoogleFonts.poppins(
-                              fontSize: 24,
-                              color: Colors.white,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  // Main text
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'dibuddy',
-                        style: GoogleFonts.poppins(
-                          fontSize: 24,
-                          color: theme.colorScheme.primary,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                      Text(
-                        'K10 Academic Services',
-                        style: GoogleFonts.poppins(
-                          fontSize: 10,
-                          color: theme.colorScheme.onBackground.withOpacity(0.7),
-                          fontWeight: FontWeight.w400,
-                          letterSpacing: 1.2,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
+              Center(
+  child: Image.asset(
+    'assets/icons/edibuddylogo.png',
+    width: 120, // Adjust width as needed
+    height: 50, // Adjust height as needed
+    fit: BoxFit.contain, // Ensures the image fits properly
+  ),
+),
+
+              // Row(
+              //   mainAxisAlignment: MainAxisAlignment.center,
+              //   children: [
+              //     // Logo circle with 'e'
+              //     Container(
+              //       width: 40,
+              //       height: 40,
+              //       decoration: BoxDecoration(
+              //         gradient: LinearGradient(
+              //           begin: Alignment.topLeft,
+              //           end: Alignment.bottomRight,
+              //           colors: [
+              //             Color(0xFFFF6B9B), // Pink
+              //             Color(0xFF6E40C9), // Purple
+              //           ],
+              //         ),
+              //         shape: BoxShape.circle,
+              //       ),
+              //       child: Stack(
+              //         children: [
+              //           // Dots decoration
+              //           Positioned(
+              //             top: 2,
+              //             right: 2,
+              //             child: Container(
+              //               width: 6,
+              //               height: 6,
+              //               decoration: BoxDecoration(
+              //                 color: Colors.white.withOpacity(0.7),
+              //                 shape: BoxShape.circle,
+              //               ),
+              //             ),
+              //           ),
+              //           Center(
+              //             child: Text(
+              //               'e',
+              //               style: GoogleFonts.poppins(
+              //                 fontSize: 24,
+              //                 color: Colors.white,
+              //                 fontWeight: FontWeight.w600,
+              //               ),
+              //             ),
+              //           ),
+              //         ],
+              //       ),
+              //     ),
+              //     const SizedBox(width: 8),
+              //     // Main text
+              //     Column(
+              //       crossAxisAlignment: CrossAxisAlignment.start,
+              //       children: [
+              //         Text(
+              //           'dibuddy',
+              //           style: GoogleFonts.poppins(
+              //             fontSize: 24,
+              //             color: theme.colorScheme.primary,
+              //             fontWeight: FontWeight.w600,
+              //             letterSpacing: 0.5,
+              //           ),
+              //         ),
+              //         Text(
+              //           'K10 Academic Services',
+              //           style: GoogleFonts.poppins(
+              //             fontSize: 10,
+              //             color: theme.colorScheme.onBackground.withOpacity(0.7),
+              //             fontWeight: FontWeight.w400,
+              //             letterSpacing: 1.2,
+              //           ),
+              //         ),
+              //       ],
+              //     ),
+              //   ],
+              // ),
               const Spacer(),
               IconButton(
                 icon: Icon(Icons.notifications_outlined,
@@ -166,6 +192,78 @@ Widget build(BuildContext context) {
     ),
   );
 }
+
+Widget _buildRecentJobsSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Text(
+            'Recent Job Postings',
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          ),
+        ),
+        StreamBuilder<QuerySnapshot>(
+          stream: FirebaseFirestore.instance
+              .collection('jobs')
+              .orderBy('creationDate', descending: true)
+              .limit(5)
+              .snapshots(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return Center(child: CircularProgressIndicator());
+            }
+            if (snapshot.hasError) {
+              return Center(child: Text('Error: ${snapshot.error}'));
+            }
+         
+            if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+              return Center(child: Text('No recent job postings'));
+            }
+
+            return ListView.builder(
+              shrinkWrap: true,
+              physics: NeverScrollableScrollPhysics(),
+              itemCount: snapshot.data!.docs.length,
+              itemBuilder: (context, index) {
+                var docSnapshot = snapshot.data!.docs[index];
+                var jobData = docSnapshot.data() as Map<String, dynamic>;
+                jobData['id'] = docSnapshot.id;
+                return _buildJobCardForRecent(jobData);
+              },
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildJobCardForRecent(Map<String, dynamic> jobData) {
+    print('Ramesh jobdata is $jobData');
+    return Card(
+      margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: ListTile(
+        title: Text(jobData['jobTitle'] ?? 'Untitled Job'),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(jobData['schoolName'] ?? 'Unknown School'),
+            Text(jobData['jobLocation'] ?? 'Location not specified'),
+          ],
+        ),
+        trailing: Text(jobData['jobType'] ?? 'Type not specified'),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => EmployeeJobDetailsPage(jobId: jobData['id']),
+            ),
+          );
+        },
+      ),
+    );
+  }
 
   Widget _buildWelcomeSection(ThemeData theme) {
     return Padding(
@@ -691,55 +789,67 @@ Widget build(BuildContext context) {
     );
   }
 
-  Widget _buildLocationSection(ThemeData theme) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Jobs near',
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: theme.colorScheme.onSurface,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    Icon(Icons.location_on,
-                        color: theme.colorScheme.primary, size: 18),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Kondapur, Hyderabad',
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.w500,
-                          color: theme.colorScheme.primary,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          TextButton(
-            onPressed: () {},
-            child: Text(
-              'Change',
-              style: TextStyle(color: theme.colorScheme.secondary),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+
+Widget _buildLocationSection(ThemeData theme) {
+  return Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+    child: LocationSelectorWidget(
+      onLocationChanged: _updateLocation,
+      initialLocation: _selectedLocation, // ✅ Pass the selected location
+    ),
+  );
+}
+
+
+  // Widget _buildLocationSection(ThemeData theme) {
+  //   return Padding(
+  //     padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+  //     child: Row(
+  //       mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  //       children: [
+  //         Expanded(
+  //           child: Column(
+  //             crossAxisAlignment: CrossAxisAlignment.start,
+  //             children: [
+  //               Text(
+  //                 'Jobs near',
+  //                 style: theme.textTheme.titleSmall?.copyWith(
+  //                   fontWeight: FontWeight.w600,
+  //                   color: theme.colorScheme.onSurface,
+  //                 ),
+  //               ),
+  //               const SizedBox(height: 4),
+  //               Row(
+  //                 children: [
+  //                   Icon(Icons.location_on,
+  //                       color: theme.colorScheme.primary, size: 18),
+  //                   const SizedBox(width: 8),
+  //                   Expanded(
+  //                     child: Text(
+  //                       'Kondapur, Hyderabad',
+  //                       style: theme.textTheme.bodyMedium?.copyWith(
+  //                         fontWeight: FontWeight.w500,
+  //                         color: theme.colorScheme.primary,
+  //                       ),
+  //                       overflow: TextOverflow.ellipsis,
+  //                     ),
+  //                   ),
+  //                 ],
+  //               ),
+  //             ],
+  //           ),
+  //         ),
+  //         TextButton(
+  //           onPressed: () {},
+  //           child: Text(
+  //             'Change',
+  //             style: TextStyle(color: theme.colorScheme.secondary),
+  //           ),
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
 
   Widget _buildFiltersSection(ThemeData theme) {
     return Padding(

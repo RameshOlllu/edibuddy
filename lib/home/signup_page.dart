@@ -382,6 +382,7 @@ Future<void> _signUp() async {
 
     await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
       'uid': user.uid,
+      'userType': 'employee', // Hardcoded user type
       'profileComplete': false,
       'createdAt': FieldValue.serverTimestamp(),
       'lastUpdated': FieldValue.serverTimestamp(),

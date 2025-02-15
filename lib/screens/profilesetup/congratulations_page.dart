@@ -1,17 +1,51 @@
 import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
+
 import 'splash_screen_with_tabs.dart';
 
 class CongratulationsPage extends StatelessWidget {
-  const CongratulationsPage({Key? key}) : super(key: key);
+  final int stars;
+  final int hearts;
 
-  void _navigateToHome(BuildContext context) {
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(
-        builder: (_) => SplashScreenWithTabs(initialTabIndex: 0), // Navigate to the first tab
-      ),
-      (route) => false,
+  const CongratulationsPage({
+    Key? key,
+    required this.stars,
+    required this.hearts,
+  }) : super(key: key);
+
+  Widget _buildRatingSection(
+      String title, int count, IconData icon, Color color) {
+    return Column(
+      children: [
+        Text(
+          title,
+          style: TextStyle(
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
+        ),
+        const SizedBox(height: 16),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: List.generate(
+            count,
+            (index) => Icon(
+              icon,
+              size: 36,
+              color: color,
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          "$count Achieved",
+          style: TextStyle(
+            fontSize: 18,
+            color: Colors.white70,
+          ),
+        ),
+      ],
     );
   }
 
@@ -29,18 +63,18 @@ class CongratulationsPage extends StatelessWidget {
           ),
         ),
         child: Center(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Lottie.asset(
                   'assets/animations/congratulations.json',
-                  repeat: false,
-                  width: 200,
-                  height: 200,
+                  repeat: true,
+                  width: MediaQuery.of(context).size.width * 0.8,
+                  height: MediaQuery.of(context).size.height * 0.4,
                 ),
-                const SizedBox(height: 24),
+
                 Text(
                   "Congratulations!",
                   style: TextStyle(
@@ -51,26 +85,23 @@ class CongratulationsPage extends StatelessWidget {
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 16),
-                Text(
-                  "Your profile setup is complete. Let’s explore and find your dream job now!",
-                  style: TextStyle(
-                    fontSize: 18,
-                    color: Colors.white70,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
+                _buildRatingSection("Stars", stars, Icons.star, Colors.yellow),
+                const SizedBox(height: 32),
+                _buildRatingSection(
+                    "Hearts", hearts, Icons.favorite, Colors.red),
                 const SizedBox(height: 32),
                 ElevatedButton(
-                  onPressed: () => _navigateToHome(context),
+                   onPressed: () => _navigateToHome(context),
                   style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 32),
+                    padding: const EdgeInsets.symmetric(
+                        vertical: 16, horizontal: 32),
                     backgroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
                   child: Text(
-                    "Let’s Explore",
+                    "Let's Explore",
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
@@ -85,4 +116,14 @@ class CongratulationsPage extends StatelessWidget {
       ),
     );
   }
+  
+ void _navigateToHome(BuildContext context) {
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(
+        builder: (_) => SplashScreenWithTabs(initialTabIndex: 0), // Navigate to the first tab
+      ),
+      (route) => false,
+      );
+ }
 }

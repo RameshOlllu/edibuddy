@@ -103,13 +103,23 @@ class SplashContent extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min, // Ensures vertical centering
             children: [
+                 Padding(
+              padding: const EdgeInsets.only(top: 1.0, bottom: 10.0),
+              child: Image.asset(
+                'assets/icons/edibuddylogo.png',  // Ensure this is correctly added to assets
+                width: 300,
+                height: 50,
+                fit: BoxFit.contain,
+              ),
+            ),
+            SizedBox(height: 50,),
               // Logo Section
               Padding(
                 padding: const EdgeInsets.only(bottom: 20.0),
                 child: Image.asset(
                   image,
-                  width: 150,
-                  height: 150,
+                  width: 250,
+                  height: 250,
                   fit: BoxFit.contain,
                 ),
               ),

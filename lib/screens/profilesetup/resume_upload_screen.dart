@@ -156,39 +156,18 @@ void _completeProfile() async {
     }
 
     final userData = userDoc.data()!;
-    final badges = userData['badges'] as Map<String, dynamic>? ?? {};
-    const requiredBadges = [
-      'award',
-      'basicdetails',
-      'education',
-      'experience',
-      'jobpreferences',
-      'resume',
-    ];
+    final stars = _calculateStars(userData);
+    final hearts = _calculateHearts(userData);
 
-    final requiredBadgesEarned = requiredBadges.every((key) {
-      final badge = badges[key];
-      return badge is Map<String, dynamic> && badge['earned'] == true;
-    });
-
-    await _resumeService.updateUserProfileStatus(widget.userId, requiredBadgesEarned);
+    await _resumeService.updateUserProfileStatus(widget.userId, stars >= 3, stars, hearts);
 
     if (mounted) {
-      if (requiredBadgesEarned) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => CongratulationsPage(
-            
-            ),
-          ),
-        );
-      } else {
-        _showSnackBar(
-          "Not all required badges are earned. Complete all sections to finish profile setup.",
-          isError: true,
-        );
-      }
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => CongratulationsPage(stars: stars, hearts: hearts),
+        ),
+      );
     }
   } catch (e) {
     if (mounted) {
@@ -196,6 +175,61 @@ void _completeProfile() async {
     }
     debugPrint("Error in _completeProfile: $e");
   }
+}
+
+int _calculateStars(Map<String, dynamic> userData) {
+  final educationDetails = userData['educationDetails'] as List<dynamic>;
+  final degrees = educationDetails.map((edu) => edu['degree'] as String).toList();
+
+  bool hasBachelor = degrees.any((degree) => degree.contains("Bachelor"));
+  bool hasBEd = degrees.any((degree) => degree.contains("B.Ed"));
+  bool hasPrimaryCertification = degrees.any((degree) => degree.contains("Primary Teaching Certification"));
+  bool hasMaster = degrees.any((degree) => degree.contains("Master"));
+  bool hasHigherEducation = degrees.any((degree) => degree.contains("M.Ed") || degree.contains("PhD") || degree.contains("Doctorate"));
+
+  int stars = 0;
+
+  // Star calculation logic
+  if (hasBachelor) stars = 1;
+  if (hasBachelor && hasBEd) stars = 2;
+  if (hasBachelor && hasBEd && hasPrimaryCertification) stars = 3;
+  if (hasBachelor && hasBEd && hasMaster) stars = 4;
+  if (hasBachelor && hasBEd && hasMaster && hasHigherEducation) stars = 5;
+
+  return stars;
+}
+
+
+int _calculateHearts(Map<String, dynamic> userData) {
+  final experienceDetails = userData['experienceDetails'] as List<dynamic>;
+  final awards = userData['awards'] as List<dynamic>;
+
+  int totalYears = 0;
+
+  for (var exp in experienceDetails) {
+    final startDate = DateTime.parse(exp['startDate'] as String);
+    final endDate = exp['isCurrentlyWorking'] == true
+        ? DateTime.now()
+        : DateTime.parse(exp['endDate'] as String);
+
+    totalYears += endDate.difference(startDate).inDays ~/ 365;
+  }
+
+  int hearts = 0;
+
+  if (totalYears <= 5) {
+    hearts = 1;
+  } else if (totalYears <= 8) {
+    hearts = 2;
+  } else if (totalYears <= 10) {
+    hearts = 3;
+  } else if (totalYears > 10) {
+    hearts = 4;
+  }
+
+  if (awards.isNotEmpty) hearts++;
+
+  return hearts;
 }
 
 

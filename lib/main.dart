@@ -1,4 +1,3 @@
-
 import 'package:edibuddy/home/email_verification_page.dart';
 import 'package:edibuddy/home/homepage.dart';
 import 'package:edibuddy/home/signin_page.dart';
@@ -12,6 +11,7 @@ import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 import 'providers/flow_manager.dart';
+
 
 // Global navigator key
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -36,7 +36,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => FlowManager()),
+        ChangeNotifierProvider(create: (_) => FlowManager())
       ],
       child: Builder(
         builder: (context) {
@@ -77,12 +77,10 @@ class MyApp extends StatelessWidget {
             // Define the routes table
             routes: {
               '/': (context) => SplashScreenWithTabs(), // Default route
-              '/home': (context) =>
-                  const HomeScreen(), // Dashboard widget
+              '/home': (context) => const HomeScreen(), // Dashboard widget
               '/signin': (context) => const SignInPage(),
               '/signup': (context) => const SignUpPage(),
-              '/email-verification': (context) =>
-                  const EmailVerificationPage(),
+              '/email-verification': (context) => const EmailVerificationPage(),
             },
             initialRoute: '/',
           );

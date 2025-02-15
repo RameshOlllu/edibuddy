@@ -4,8 +4,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../home/email_verification_page.dart';
+import '../../home/employer/employer_home_screen.dart';
 import '../../home/homepage.dart';
 import '../../home/signin_page.dart';
+import '../home/employer_profile_screen.dart';
 import '../home/quick_actions.dart';
 import 'profile_setup_manager.dart';
 import 'splash_screen_content.dart';
@@ -38,49 +40,57 @@ class _SplashScreenWithTabsState extends State<SplashScreenWithTabs> {
     });
   }
 
-  Future<void> _checkAuthStatus() async {
-    try {
-      final user = FirebaseAuth.instance.currentUser;
+ Future<void> _checkAuthStatus() async {
+  try {
+    final user = FirebaseAuth.instance.currentUser;
 
-      if (user != null) {
-        debugPrint('User is logged in.');
+    if (user != null) {
+      debugPrint('User is logged in.');
 
-        if (!user.emailVerified) {
-          debugPrint(
-              'User email not verified. Navigating to Email Verification Page.');
-          setState(() {
-            _isLoggedIn = true;
-            _isProfileComplete = false; // Assume profile setup is incomplete
-          });
-          return;
-        }
-
-        final isProfileComplete = await _checkProfileCompletion(user);
-
+      if (!user.emailVerified) {
+        debugPrint(
+            'User email not verified. Navigating to Email Verification Page.');
         setState(() {
           _isLoggedIn = true;
-          _isProfileComplete = isProfileComplete;
-          userId = user.uid;
-          _initializePages();
-        });
-      } else {
-        debugPrint('No user logged in. Showing default Splash Content.');
-        setState(() {
-          _isLoggedIn = false;
           _isProfileComplete = false;
-          _initializePages();
         });
+        return;
       }
-    } catch (e) {
-      debugPrint('Error checking auth status: $e');
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+
+      final data = userDoc.data() ?? {};
+      final userType = data['userType'] ?? 'employee';
+
+      final isProfileComplete = data['profileComplete'] == true;
+
+      setState(() {
+        _isLoggedIn = true;
+        _isProfileComplete = isProfileComplete;
+        userId = user.uid;
+        _initializePages(userType); // Pass userType to initializePages
+      });
+    } else {
+      debugPrint('No user logged in. Showing default Splash Content.');
+      setState(() {
+        _isLoggedIn = false;
+        _isProfileComplete = false;
+        _initializePages(null); // No user type
+      });
+    }
+  } catch (e) {
+    debugPrint('Error checking auth status: $e');
+  } finally {
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+      });
     }
   }
+}
 
   Future<bool> _checkProfileCompletion(User user) async {
     try {
@@ -96,75 +106,88 @@ class _SplashScreenWithTabsState extends State<SplashScreenWithTabs> {
       return false;
     }
   }
+void _initializePages(String? userType) {
+  Widget homePage;
 
-  void _initializePages() {
-    _pages = [
-      (_isLoggedIn && _isProfileComplete)
-          ? const HomeScreen()
-          : SplashContent(
-              image: 'assets/images/rec.png',
-              title: 'MADE WITH HEART',
-              subtitle: 'Simplifying recruitment smartly',
-              tagline: 'TO MAKE YOU A STAR',
-              buttonLabel: 'Get Started',
-              onButtonTap: _handleGetStarted,
-            ),
-      if (_isLoggedIn)
-        (_isProfileComplete
-            ? const HomeScreen()
-            : ProfileSetupManager(
-                userId: FirebaseAuth.instance.currentUser!.uid,
-                onProfileComplete: _onProfileComplete,
-              )),
-      if (_isLoggedIn)
-        QuickActionsTab()
-      else
-        const Center(
-          child: Text(
-            'Please log in to access your profile.',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-          ),
-        ),
-      if (_isLoggedIn)
-        ProfileScreen(userId: userId ?? '')
-      else
-        const Center(
-          child: Text(
-            'Please log in to access your profile.',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-          ),
-        ),
-    ];
+  if (userType == 'employer') {
+    homePage = const EmployerHomeScreen(); // Navigate to Employer Home Screen
+  } else {
+    homePage = const HomeScreen(); // Default to Employee Home Screen
   }
 
-  void _handleGetStarted() {
-    if (!_isLoggedIn) {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const SignInPage()),
-      );
-    } else if (!_isProfileComplete) {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (_) => ProfileSetupManager(
-            userId: FirebaseAuth.instance.currentUser!.uid,
-            onProfileComplete: _onProfileComplete,
+  _pages = [
+    (_isLoggedIn && _isProfileComplete)
+        ? homePage
+        : SplashContent(
+            image: 'assets/images/rec.png',
+            title: 'MADE WITH HEART',
+            subtitle: 'Simplifying recruitment smartly',
+            tagline: 'TO MAKE YOU A STAR',
+            buttonLabel: 'Get Started',
+            onButtonTap: _handleGetStarted,
           ),
+    if (_isLoggedIn)
+      (_isProfileComplete
+          ? homePage
+          : ProfileSetupManager(
+              userId: FirebaseAuth.instance.currentUser!.uid,
+              onProfileComplete: _onProfileComplete,
+            )),
+    if (_isLoggedIn)
+      QuickActionsTab()
+    else
+      const Center(
+        child: Text(
+          'Please log in to access your profile.',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
         ),
-      );
-    } else {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const HomeScreen()),
-      );
-    }
-  }
+      ),
+    if (_isLoggedIn)
+     (userType == 'employee')? ProfileScreen(userId: userId ?? ''):EmployerProfileScreen()
+    
+    else
+      const Center(
+        child: Text(
+          'Please log in to access your profile.',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+      ),
+  ];
+}
 
-  void _onProfileComplete() {
-    setState(() {
-      _isProfileComplete = true;
-      _initializePages();
-      _currentIndex = 0;
-    });
+void _handleGetStarted() {
+  if (!_isLoggedIn) {
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(builder: (_) => const SignInPage()),
+    );
+  } else if (!_isProfileComplete) {
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (_) => ProfileSetupManager(
+          userId: FirebaseAuth.instance.currentUser!.uid,
+          onProfileComplete: _onProfileComplete,
+        ),
+      ),
+    );
+  } else {
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (_) => _pages[0], // Use the initialized home page
+      ),
+    );
   }
+}
+
+
+void _onProfileComplete() {
+  setState(() {
+    _isProfileComplete = true;
+    // Reinitialize pages with the stored userType from _checkAuthStatus
+    _initializePages(userId != null ? _pages[0] is EmployerHomeScreen ? 'employer' : 'employee' : null);
+    _currentIndex = 0; // Reset to the first tab
+  });
+}
+
 
   void _onTabTapped(int index) {
     if (!_isLoggedIn) {

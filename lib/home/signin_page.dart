@@ -4,7 +4,7 @@ import '../screens/profilesetup/splash_screen_with_tabs.dart';
 import '../screens/profilesetup/profile_setup_manager.dart';
 import '../service/auth_service.dart';
 import 'email_verification_page.dart';
-import 'signup_page.dart';
+import 'select_user_type.dart';
 
 class SignInPage extends StatefulWidget {
   const SignInPage({Key? key}) : super(key: key);
@@ -172,10 +172,11 @@ class _SignInPageState extends State<SignInPage> {
   Widget _buildSignUpPrompt(ColorScheme colorScheme) {
     return TextButton(
       onPressed: () {
-        Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const SignUpPage()),
-        );
-      },
+  Navigator.of(context).push(
+    MaterialPageRoute(builder: (_) => SelectUserTypePage()),
+  );
+},
+
       style: TextButton.styleFrom(
         foregroundColor: colorScheme.primary,
       ),

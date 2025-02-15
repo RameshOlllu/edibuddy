@@ -1,6 +1,6 @@
 class EducationData {
   static const Map<String, List<String>> educationLevels = {
-    "Undergraduate": [
+    "Graduate": [
       "Bachelor of Education (B.Ed)",
       "Bachelor of Arts (BA)",
       "Bachelor of Science (BSc)",
@@ -23,8 +23,12 @@ class EducationData {
       "Doctor of Education (EdD)",
       "Doctor of Science (DSc)",
     ],
-    "Other": [
+    "Diploma": [
       "Diploma in Education",
+      "Diploma in Computer Applications (DCA)",
+      "Diploma in Management",
+    ],
+    "Other": [
       "Certificate in Teaching",
       "Special Education Certification",
       "Professional Certification",
@@ -138,6 +142,16 @@ class EducationData {
       "Elementary Education",
       "Secondary Education",
       "Special Education",
+    ],
+    "Diploma in Computer Applications (DCA)": [
+      "Software Basics",
+      "Programming",
+      "Internet Technologies",
+    ],
+    "Diploma in Management": [
+      "Business Management",
+      "Operations Management",
+      "Organizational Behavior",
     ],
     "Certificate in Teaching": [
       "Early Childhood Education",

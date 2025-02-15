@@ -1,3 +1,4 @@
+import 'package:edibuddy/screens/applyjob/applied_jobs_page.dart';
 import 'package:flutter/material.dart';
 import '../../service/auth_service.dart';
 import '../quickactions/change_password_page.dart';
@@ -88,7 +89,13 @@ class QuickActionsTab extends StatelessWidget {
               icon: Icons.work,
               title: 'Applied Jobs',
               onTap: () {
-                // Navigate to Applied Jobs Screen
+                Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (context) => AppliedJobsPage(
+      ),
+    ),
+  );
               },
             ),
             _buildAccountOption(
