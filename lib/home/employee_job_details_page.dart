@@ -1,8 +1,12 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 
+import '../screens/applyjob/online_application_page.dart';
 import '../screens/applyjob/walkin_application_page.dart';
+import 'employer/message_page.dart';
 
 class EmployeeJobDetailsPage extends StatefulWidget {
   final String jobId;
@@ -18,13 +22,49 @@ class _EmployeeJobDetailsPageState extends State<EmployeeJobDetailsPage>
     with SingleTickerProviderStateMixin {
   late Future<DocumentSnapshot> _jobFuture;
   late TabController _tabController;
-
+  bool _isSaved = false;
+  bool _hasApplied = false;
+  Map<String, dynamic>? _applicationData;
   @override
   void initState() {
     super.initState();
     _jobFuture =
         FirebaseFirestore.instance.collection('jobs').doc(widget.jobId).get();
     _tabController = TabController(length: 3, vsync: this);
+    _checkIfJobSaved();
+    _checkIfUserApplied();
+  }
+
+  void _checkIfUserApplied() async {
+    final userId = FirebaseAuth.instance.currentUser!.uid;
+    final query = await FirebaseFirestore.instance
+        .collection('job_applications')
+        .where('jobId', isEqualTo: widget.jobId)
+        .where('employeeId', isEqualTo: userId)
+        .get();
+
+    if (query.docs.isNotEmpty) {
+      setState(() {
+        _hasApplied = true;
+        _applicationData = {
+          ...query.docs.first.data(),
+          'id': query.docs.first.id, // Add the document ID to the data
+        };
+      });
+    }
+  }
+
+  void _checkIfJobSaved() async {
+    final userId = FirebaseAuth.instance.currentUser!.uid;
+    final savedJobDoc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(userId)
+        .collection('savedJobs')
+        .doc(widget.jobId)
+        .get();
+    setState(() {
+      _isSaved = savedJobDoc.exists;
+    });
   }
 
   @override
@@ -77,18 +117,64 @@ class _EmployeeJobDetailsPageState extends State<EmployeeJobDetailsPage>
                   ),
                   actions: [
                     IconButton(
-                      icon: Icon(Icons.share, color: theme.colorScheme.primary),
-                      onPressed: () {
-                        // Share job details
-                      },
+                      icon: Icon(
+                        _isSaved ? Icons.bookmark : Icons.bookmark_border,
+                        color: theme.colorScheme.primary,
+                      ),
+                      iconSize: 24,
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      constraints: const BoxConstraints(),
+                      onPressed:
+                          _toggleSaveJob, // Function to toggle job save state
                     ),
+                    //                 IconButton(
+                    //                   icon: Icon(Icons.share, color: theme.colorScheme.primary),
+                    //                   iconSize: 20,
+                    // padding: const EdgeInsets.symmetric(horizontal: 4),
+                    //                   onPressed: () {
+                    //                     // Share job details
+                    //                   },
+                    //                 ),
                     IconButton(
-                      icon: Icon(Icons.more_vert,
-                          color: theme.colorScheme.onSurface),
+                      icon: Icon(Icons.chat, color: theme.colorScheme.primary),
+                      iconSize: 24,
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      constraints: const BoxConstraints(),
                       onPressed: () {
-                        // More options
+                        if (!_hasApplied) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                  "Please apply to the job before initiating a chat."),
+                            ),
+                          );
+                          return;
+                        }
+                        // Navigate to CommunicationMessagesPage.
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => CommunicationMessagesPage(
+                              applicationId: _applicationData!['id'],
+                              jobId: widget.jobId,
+                              employeeId:
+                                  FirebaseAuth.instance.currentUser!.uid,
+                              employerId: jobData[
+                                  'userId'], // from your jobData fetched from Firestore
+                            ),
+                          ),
+                        );
                       },
                     ),
+                    //                 IconButton(
+                    //                   icon: Icon(Icons.more_vert,
+                    //                       color: theme.colorScheme.onSurface),
+                    //                       iconSize: 20,
+                    // padding: const EdgeInsets.symmetric(horizontal: 4),
+                    //                   onPressed: () {
+                    //                     // More options
+                    //                   },
+                    //                 ),
                   ],
                   title: Text(
                     jobData['jobTitle'] ?? 'Job Details',
@@ -142,10 +228,225 @@ class _EmployeeJobDetailsPageState extends State<EmployeeJobDetailsPage>
               ],
             ),
           ),
-          bottomNavigationBar: _buildBottomBar(),
+          bottomNavigationBar: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: ElevatedButton(
+              onPressed: () {
+                if (_hasApplied) {
+                  _showApplicationStatusModal(context);
+                } else {
+                  _handleApplyNow(context, jobData);
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: theme.colorScheme.primary,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8)),
+              ),
+              child: Text(
+                _hasApplied ? 'View Application Status' : 'Apply Now',
+                style: theme.textTheme.bodyLarge
+                    ?.copyWith(color: theme.colorScheme.onPrimary),
+              ),
+            ),
+          ),
         );
       },
     );
+  }
+
+  void _showApplicationStatusModal(BuildContext context) {
+    final theme = Theme.of(context);
+    if (_applicationData == null) return;
+
+    showModalBottomSheet(
+      context: context,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 50,
+                  height: 5,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              /// **Header**
+              Center(
+                child: Text(
+                  "Application Status",
+                  style: theme.textTheme.titleLarge
+                      ?.copyWith(fontWeight: FontWeight.bold),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              /// **Application Date**
+              Row(
+                children: [
+                  Icon(Icons.date_range, color: theme.colorScheme.primary),
+                  const SizedBox(width: 8),
+                  Text(
+                    "Applied on: ${DateFormat('dd MMM yyyy').format((_applicationData!['appliedAt'] as Timestamp).toDate())}",
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+
+              /// **Application Status**
+              Row(
+                children: [
+                  Icon(Icons.info, color: theme.colorScheme.primary),
+                  const SizedBox(width: 8),
+                  Text(
+                    "Status: ${_applicationData!['status']}",
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: _getStatusColor(_applicationData!['status']),
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+
+              /// **Interview Slot (If Available)**
+              if (_applicationData!['selectedSlot'] != null) ...[
+                Row(
+                  children: [
+                    Icon(Icons.schedule, color: theme.colorScheme.primary),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        "Interview Slot: ${_formatInterviewSlot(_applicationData!['selectedSlot'])}",
+                        style: theme.textTheme.bodyMedium,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+              ],
+
+              /// **Resume Link**
+              if (_applicationData!['resumeUrl'] != null) ...[
+                Row(
+                  children: [
+                    Icon(Icons.file_present, color: theme.colorScheme.primary),
+                    const SizedBox(width: 8),
+                    GestureDetector(
+                      onTap: () => _openResume(_applicationData!['resumeUrl']),
+                      child: Text(
+                        "View Resume",
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: theme.colorScheme.primary,
+                          decoration: TextDecoration.underline,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+              ],
+
+              /// **Additional Details**
+              if (_applicationData!['additionalDetails'] != null &&
+                  _applicationData!['additionalDetails']
+                      .toString()
+                      .isNotEmpty) ...[
+                Text(
+                  "Additional Details:",
+                  style: theme.textTheme.titleMedium
+                      ?.copyWith(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  _applicationData!['additionalDetails'],
+                  style: theme.textTheme.bodyMedium,
+                ),
+                const SizedBox(height: 12),
+              ],
+
+              /// **Close Button**
+              /// **Close Button - Enhanced Design**
+              Center(
+                child: SizedBox(
+                  width: double.infinity, // Make button full width
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor:
+                          theme.colorScheme.primary, // Use theme color
+                      foregroundColor:
+                          theme.colorScheme.onPrimary, // Text color
+                      padding: const EdgeInsets.symmetric(
+                          vertical: 14), // Increase padding
+                      shape: RoundedRectangleBorder(
+                        borderRadius:
+                            BorderRadius.circular(12), // Rounded corners
+                      ),
+                      elevation: 2, // Subtle shadow effect
+                    ),
+                    child: Text(
+                      "Close",
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.5, // Improve readability
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Color _getStatusColor(String status) {
+    switch (status) {
+      case "Applied":
+        return Colors.blue;
+      case "Shortlisted":
+        return Colors.green;
+      case "Rejected":
+        return Colors.red;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  String _formatInterviewSlot(Map<String, dynamic> slot) {
+    final date = (slot['date'] as Timestamp).toDate();
+    final startTime = TimeOfDay(
+        hour: slot['startTime']['hour'], minute: slot['startTime']['minute']);
+    final endTime = TimeOfDay(
+        hour: slot['endTime']['hour'], minute: slot['endTime']['minute']);
+
+    return "${DateFormat('EEEE, MMM d').format(date)}\n${startTime.format(context)} - ${endTime.format(context)}";
+  }
+
+  void _openResume(String url) async {
+    if (await canLaunch(url)) {
+      await launch(url);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not open resume')),
+      );
+    }
   }
 
   Widget _buildJobDetailsTab(Map<String, dynamic> jobData) {
@@ -538,57 +839,50 @@ class _EmployeeJobDetailsPageState extends State<EmployeeJobDetailsPage>
     );
   }
 
-  Widget _buildBottomBar() {
-    final theme = Theme.of(context);
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
-        boxShadow: [
-          BoxShadow(
-            color: theme.shadowColor.withOpacity(0.1),
-            spreadRadius: 1,
-            blurRadius: 4,
-            offset: const Offset(0, -2),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: ElevatedButton(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) =>
-                        WalkInApplicationPage(jobId: widget.jobId),
-                  ),
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: theme.colorScheme.primary,
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-              child: Text(
-                'Apply Now',
-                style: theme.textTheme.bodyLarge
-                    ?.copyWith(color: theme.colorScheme.onPrimary),
-              ),
-            ),
-          ),
-          const SizedBox(width: 16),
-          IconButton(
-            icon: Icon(Icons.bookmark_border, color: theme.colorScheme.primary),
-            onPressed: () {
-              // Implement save job logic
-            },
-          ),
-        ],
-      ),
-    );
+  void _handleApplyNow(BuildContext context, Map<String, dynamic> jobData) {
+    final walkInDetails = jobData['walkInDetails'];
+
+    if (walkInDetails != null && walkInDetails['hasWalkIn'] == true) {
+      // Navigate to Walk-In Page
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => WalkInApplicationPage(jobId: widget.jobId),
+        ),
+      );
+    } else {
+      // Navigate to New Online Application Page
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => OnlineApplicationPage(jobId: widget.jobId),
+        ),
+      );
+    }
+  }
+
+  void _toggleSaveJob() async {
+    final userId = FirebaseAuth.instance.currentUser!.uid;
+    if (_isSaved) {
+      // Remove job from saved list
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .collection('savedJobs')
+          .doc(widget.jobId)
+          .delete();
+    } else {
+      // Add job to saved list
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .collection('savedJobs')
+          .doc(widget.jobId)
+          .set({'savedAt': FieldValue.serverTimestamp()});
+    }
+
+    setState(() {
+      _isSaved = !_isSaved;
+    });
   }
 }

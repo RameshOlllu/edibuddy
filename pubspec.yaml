@@ -4,7 +4,7 @@ description: "A new Flutter project."
 # Prevent accidental publishing to pub.dev.
 publish_to: 'none'
 
-version: 1.0.0+1
+version: 1.0.0+2
 
 environment:
   sdk: ^3.6.0
@@ -42,6 +42,10 @@ dependencies:
   cached_network_image: ^3.4.1
   firebase_app_check: ^0.3.1+7
   url_launcher: ^6.3.1
+  flutter_launcher_icons: ^0.14.3
+  flutter_quill: ^10.8.5
+  flutter_linkify: ^6.0.0
+  webview_flutter: ^4.10.0
 
 dev_dependencies:
   flutter_test:
@@ -75,4 +79,11 @@ flutter:
     - assets/logo.svg
     - assets/data/india_locations.json
     - assets/icons/edibuddylogo.png
+
+flutter_icons:
+  android: true
+  ios: true
+  image_path: "assets/images/rec.png"
+  adaptive_icon_foreground: "assets/images/rec.png"
+  adaptive_icon_background: "assets/images/rec.png"
 

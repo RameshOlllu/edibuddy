@@ -3,6 +3,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../../home/employee_job_details_page.dart';
+import '../../widgets/job_card_for_recent_jobs.dart';
 import 'applied_job_details_page.dart';
 
 class AppliedJobsPage extends StatelessWidget {
@@ -67,7 +69,8 @@ class AppliedJobsPage extends StatelessWidget {
                       .doc(jobId)
                       .get(),
                   builder: (context, jobSnapshot) {
-                    if (jobSnapshot.connectionState == ConnectionState.waiting) {
+                    if (jobSnapshot.connectionState ==
+                        ConnectionState.waiting) {
                       return Card(
                         margin: const EdgeInsets.symmetric(
                             horizontal: 16, vertical: 8),
@@ -141,14 +144,14 @@ class AppliedJobsPage extends StatelessWidget {
                         ),
                         trailing: const Icon(Icons.chevron_right),
                         onTap: () {
-  Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (context) => AppliedJobDetailsPage(applicationId: appDoc.id),
-    ),
-  );
-},
-
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) =>
+                                  EmployeeJobDetailsPage(jobId: jobId),
+                            ),
+                          );
+                        },
                       ),
                     );
                   },

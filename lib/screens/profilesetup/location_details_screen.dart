@@ -298,7 +298,7 @@ Future<void> _fetchData() async {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: const [
                           Text(
-                            "Locaiton Inforamtion",
+                            "Location Information",
                             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                           ),
                           SizedBox(height: 8),

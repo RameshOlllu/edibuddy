@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'job_details_screen.dart';
+import 'job_management_screen.dart';
 
 
 class JobsPostedByMe extends StatelessWidget {
@@ -90,7 +91,7 @@ class JobsPostedByMe extends StatelessWidget {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => JobDetailsScreen(jobId: jobId),
+              builder: (context) => JobManagementScreen(jobId: jobId),
             ),
           );
         },

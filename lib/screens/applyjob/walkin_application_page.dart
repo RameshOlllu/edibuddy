@@ -1,5 +1,4 @@
 import 'dart:io';
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -17,22 +16,23 @@ class WalkInApplicationPage extends StatefulWidget {
 }
 
 class _WalkInApplicationPageState extends State<WalkInApplicationPage> {
+  final _formKey = GlobalKey<FormState>();
+  final _additionalDetailsController = TextEditingController();
+  String? _noticePeriodValue;
+  String _noticePeriodType = 'Days';
+  String? _resumeUrl;
+  bool _isUploading = false;
+  int? _selectedSlotIndex;
+  Map<String, dynamic>? _walkInDetails;
   late Future<DocumentSnapshot> _jobFuture;
-  Map<String, dynamic>? walkInDetails;
-  int? selectedSlotIndex;
-  String? resumeUrl;
-  bool isUploading = false;
 
   @override
   void initState() {
     super.initState();
-    _jobFuture = FirebaseFirestore.instance
-        .collection('jobs')
-        .doc(widget.jobId)
-        .get();
+    _jobFuture = FirebaseFirestore.instance.collection('jobs').doc(widget.jobId).get();
   }
 
-  /// Uses FilePicker to select a resume file and uploads it to Firebase Storage.
+  /// Picks and uploads a resume
   Future<void> _pickAndUploadResume() async {
     FilePickerResult? result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
@@ -41,19 +41,17 @@ class _WalkInApplicationPageState extends State<WalkInApplicationPage> {
 
     if (result != null && result.files.single.path != null) {
       File file = File(result.files.single.path!);
-      String fileName =
-          'resumes/${DateTime.now().millisecondsSinceEpoch}_${result.files.single.name}';
+      String fileName = 'resumes/${DateTime.now().millisecondsSinceEpoch}_${result.files.single.name}';
 
       setState(() {
-        isUploading = true;
+        _isUploading = true;
       });
 
       try {
-        TaskSnapshot snapshot =
-            await FirebaseStorage.instance.ref(fileName).putFile(file);
+        TaskSnapshot snapshot = await FirebaseStorage.instance.ref(fileName).putFile(file);
         String downloadUrl = await snapshot.ref.getDownloadURL();
         setState(() {
-          resumeUrl = downloadUrl;
+          _resumeUrl = downloadUrl;
         });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Resume uploaded successfully!')),
@@ -64,29 +62,23 @@ class _WalkInApplicationPageState extends State<WalkInApplicationPage> {
         );
       } finally {
         setState(() {
-          isUploading = false;
+          _isUploading = false;
         });
       }
     }
   }
 
-  /// Submits the walk‑in application with the selected slot and resume.
+  /// Submits the application
   Future<void> _submitApplication(Map<String, dynamic> jobData) async {
-    if (selectedSlotIndex == null) {
+    if (_selectedSlotIndex == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Please select an interview slot')),
       );
       return;
     }
-    if (resumeUrl == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Please upload your resume')),
-      );
-      return;
-    }
 
     final String employeeId = FirebaseAuth.instance.currentUser!.uid;
-    final selectedSlot = walkInDetails!['slots'][selectedSlotIndex!];
+    final selectedSlot = _walkInDetails!['slots'][_selectedSlotIndex!];
     final String employerId = jobData['userId'];
 
     await FirebaseFirestore.instance.collection('job_applications').add({
@@ -96,212 +88,155 @@ class _WalkInApplicationPageState extends State<WalkInApplicationPage> {
       'appliedAt': FieldValue.serverTimestamp(),
       'status': 'Applied',
       'selectedSlot': selectedSlot,
-      'resumeUrl': resumeUrl,
+      'additionalDetails': _additionalDetailsController.text.trim(),
+      'noticePeriod': _noticePeriodValue != null ? '$_noticePeriodValue $_noticePeriodType' : 'Not specified',
+      'resumeUrl': _resumeUrl,
     });
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('Application submitted successfully!')),
     );
+
     Navigator.pop(context);
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+
     return FutureBuilder<DocumentSnapshot>(
       future: _jobFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return Scaffold(
-            appBar: AppBar(
-              title: Text('Walk‑In Application'),
-              backgroundColor: theme.primaryColor,
-              elevation: 0,
-            ),
+            appBar: AppBar(title: Text('Walk‑In Application')),
             body: Center(child: CircularProgressIndicator()),
           );
         }
-        if (snapshot.hasError ||
-            !snapshot.hasData ||
-            !snapshot.data!.exists) {
+        if (snapshot.hasError || !snapshot.hasData || !snapshot.data!.exists) {
           return Scaffold(
-            appBar: AppBar(
-              title: Text('Walk‑In Application'),
-              backgroundColor: theme.primaryColor,
-              elevation: 0,
-            ),
+            appBar: AppBar(title: Text('Walk‑In Application')),
             body: Center(child: Text('Error loading job data')),
           );
         }
 
         final jobData = snapshot.data!.data() as Map<String, dynamic>;
-        walkInDetails = jobData['walkInDetails'];
+        _walkInDetails = jobData['walkInDetails'];
 
-        if (walkInDetails == null || walkInDetails!['hasWalkIn'] != true) {
+        if (_walkInDetails == null || _walkInDetails!['hasWalkIn'] != true) {
           return Scaffold(
-            appBar: AppBar(
-              title: Text('Walk‑In Application'),
-              backgroundColor: theme.primaryColor,
-              elevation: 0,
-            ),
-            body: Center(
-                child: Text('No walk‑in interview details available for this job.')),
+            appBar: AppBar(title: Text('Walk‑In Application')),
+            body: Center(child: Text('No walk‑in interview details available for this job.')),
           );
         }
 
-        List slots = walkInDetails!['slots'] ?? [];
+        List slots = _walkInDetails!['slots'] ?? [];
 
         return Scaffold(
-          appBar: AppBar(
-            title: Text('Select Interview Slot'),
-            backgroundColor: theme.primaryColor,
-            elevation: 0,
-          ),
+          appBar: AppBar(title: Text('Apply for Walk‑In Interview')),
           body: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Header with gradient background.
-                Container(
-                  padding: EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [theme.primaryColor, theme.primaryColorLight],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    'Available Interview Slots',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                SizedBox(height: 16),
-                // Slot selection list wrapped in a Card.
-                Expanded(
-                  child: Card(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Form(
+              key: _formKey,
+              child: ListView(
+                children: [
+                  const SizedBox(height: 16),
+
+                  /// **Interview Slot Selection**
+                  Text('Select Interview Slot', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  Card(
                     elevation: 4,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: ListView.separated(
-                      padding: EdgeInsets.all(8),
-                      itemCount: slots.length,
-                      separatorBuilder: (context, index) =>
-                          Divider(color: Colors.grey[300]),
-                      itemBuilder: (context, index) {
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    child: Column(
+                      children: List.generate(slots.length, (index) {
                         final slot = slots[index];
                         final date = (slot['date'] as Timestamp).toDate();
-                        final startTime = TimeOfDay(
-                          hour: slot['startTime']['hour'],
-                          minute: slot['startTime']['minute'],
+                        final startTime = TimeOfDay(hour: slot['startTime']['hour'], minute: slot['startTime']['minute']);
+                        final endTime = TimeOfDay(hour: slot['endTime']['hour'], minute: slot['endTime']['minute']);
+                        final slotText = '${DateFormat('EEEE, MMM d').format(date)}\n${startTime.format(context)} - ${endTime.format(context)}';
+                        bool isSelected = _selectedSlotIndex == index;
+
+                        return ListTile(
+                          title: Text(slotText),
+                          leading: Radio<int>(
+                            value: index,
+                            groupValue: _selectedSlotIndex,
+                            onChanged: (int? value) {
+                              setState(() {
+                                _selectedSlotIndex = value;
+                              });
+                            },
+                          ),
                         );
-                        final endTime = TimeOfDay(
-                          hour: slot['endTime']['hour'],
-                          minute: slot['endTime']['minute'],
-                        );
-                        final slotText =
-                            '${DateFormat('EEEE, MMMM d').format(date)}\n${startTime.format(context)} - ${endTime.format(context)}';
-                        bool isSelected = selectedSlotIndex == index;
-                        return InkWell(
-                          onTap: () {
+                      }),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+
+                  /// **Additional Details Text Box**
+                  Text('Additional Details', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    controller: _additionalDetailsController,
+                    maxLines: 4,
+                    decoration: InputDecoration(
+                      hintText: 'Mention anything relevant for the recruiter...',
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+
+                  /// **Notice Period Selection**
+                  Text('Notice Period', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextFormField(
+                          keyboardType: TextInputType.number,
+                          decoration: InputDecoration(
+                            hintText: 'Enter duration',
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          onChanged: (value) {
                             setState(() {
-                              selectedSlotIndex = index;
+                              _noticePeriodValue = value;
                             });
                           },
-                          child: Container(
-                            padding: EdgeInsets.symmetric(
-                                vertical: 12, horizontal: 16),
-                            decoration: BoxDecoration(
-                              color: isSelected
-                                  ? theme.primaryColor.withOpacity(0.1)
-                                  : Colors.transparent,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Row(
-                              children: [
-                                Radio<int>(
-                                  value: index,
-                                  groupValue: selectedSlotIndex,
-                                  onChanged: (int? value) {
-                                    setState(() {
-                                      selectedSlotIndex = value;
-                                    });
-                                  },
-                                ),
-                                SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    slotText,
-                                    style: theme.textTheme.bodyMedium,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ),
-                SizedBox(height: 16),
-                // Resume Upload Section inside a Card.
-                Card(
-                  elevation: 4,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
-                  child: ListTile(
-                    leading:
-                        Icon(Icons.upload_file, color: theme.primaryColor),
-                    title: Text(
-                      resumeUrl != null ? 'Resume Uploaded' : 'Upload Resume',
-                      style: theme.textTheme.titleMedium,
-                    ),
-                    subtitle: resumeUrl != null
-                        ? Text('Your resume is ready for submission.')
-                        : Text('Please upload your resume (PDF, DOC, DOCX)'),
-                    trailing: isUploading
-                        ? CircularProgressIndicator()
-                        : ElevatedButton.icon(
-                            onPressed: _pickAndUploadResume,
-                            icon: Icon(Icons.cloud_upload),
-                            label: Text('Upload'),
-                            style: ElevatedButton.styleFrom(
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8)),
-                            ),
-                          ),
-                  ),
-                ),
-                SizedBox(height: 24),
-                // Submit Button.
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () => _submitApplication(jobData),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: theme.primaryColor,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
-                      padding: EdgeInsets.symmetric(vertical: 16),
-                    ),
-                    child: Text(
-                      'Submit Application',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                      const SizedBox(width: 12),
+                      DropdownButton<String>(
+                        value: _noticePeriodType,
+                        items: ['Days', 'Months'].map((type) => DropdownMenuItem(value: type, child: Text(type))).toList(),
+                        onChanged: (value) {
+                          setState(() {
+                            _noticePeriodType = value!;
+                          });
+                        },
                       ),
-                    ),
+                    ],
                   ),
-                ),
-              ],
+                  const SizedBox(height: 24),
+
+                  /// **Resume Upload Section**
+                  Text('Upload Resume', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  ElevatedButton.icon(
+                    onPressed: _pickAndUploadResume,
+                    icon: Icon(Icons.upload_file),
+                    label: Text(_resumeUrl != null ? 'Resume Uploaded' : 'Upload Resume (PDF, DOC, DOCX)'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          bottomNavigationBar: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: ElevatedButton(
+              onPressed: () => _submitApplication(jobData),
+              child: Text('Submit Application'),
             ),
           ),
         );

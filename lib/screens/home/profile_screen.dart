@@ -143,39 +143,34 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _buildProfileHeader(BuildContext context, {bool isSliver = false}) {
     // Fetch experience details safely
-    final experienceDetails =
-        userData?['experienceDetails'] as List<dynamic>? ?? [];
+   final experienceDetails = userData?['experienceDetails'];
+final List<Map<String, dynamic>> experienceList =
+    (experienceDetails != null && experienceDetails is List)
+        ? List<Map<String, dynamic>>.from(experienceDetails)
+        : [];
 
     // Find the current job
-    Map<String, dynamic>? currentJob = experienceDetails
-        .whereType<
-            Map<String,
-                dynamic>>() // Safely filter valid Map<String, dynamic> items
-        .firstWhere(
-          (exp) => exp['isCurrentlyWorking'] == true,
-          orElse: () => {}, // Return null if no current job found
-        );
-    debugPrint(experienceDetails
-        .toString()); // If no current job, pick the first record ordered by start date
-    if (currentJob.isEmpty) {
-      final sortedExperiences = experienceDetails
-          .whereType<
-              Map<String,
-                  dynamic>>() // Safely filter valid Map<String, dynamic> items
-          .where((exp) => exp['startDate'] != null)
-          .toList()
-        ..sort((a, b) {
-          final aStartDate = a['startDate'] is Timestamp
-              ? (a['startDate'] as Timestamp).toDate()
-              : DateTime.tryParse(a['startDate']) ?? DateTime.now();
-          final bStartDate = b['startDate'] is Timestamp
-              ? (b['startDate'] as Timestamp).toDate()
-              : DateTime.tryParse(b['startDate']) ?? DateTime.now();
-          return aStartDate.compareTo(bStartDate);
-        });
-      currentJob =
-          sortedExperiences.isNotEmpty ? sortedExperiences.first : null;
-    }
+ Map<String, dynamic>? currentJob = experienceList
+    .whereType<Map<String, dynamic>>() // Ensure valid Map<String, dynamic>
+    .firstWhere(
+      (exp) => exp['isCurrentlyWorking'] == true,
+      orElse: () => <String, dynamic>{}, // Return an empty map instead of null
+    );
+
+ // If no current job, pick the first record ordered by start date
+  if (currentJob.isEmpty && experienceList.isNotEmpty) {
+  experienceList.sort((a, b) {
+    final aStartDate = a['startDate'] is Timestamp
+        ? (a['startDate'] as Timestamp).toDate()
+        : DateTime.tryParse(a['startDate']) ?? DateTime.now();
+    final bStartDate = b['startDate'] is Timestamp
+        ? (b['startDate'] as Timestamp).toDate()
+        : DateTime.tryParse(b['startDate']) ?? DateTime.now();
+    return aStartDate.compareTo(bStartDate);
+  });
+
+  currentJob = experienceList.first;
+}
 
     // Fetch location details
     final location = userData?['locationDetails']?['currentLocation']
@@ -302,101 +297,101 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildExperienceSection(BuildContext context) {
-    List<Map<String, dynamic>> experiences =
-        List<Map<String, dynamic>>.from(userData!['experienceDetails']);
+Widget _buildExperienceSection(BuildContext context) {
+  // Safely retrieve experience details
+  final experienceDetails = userData?['experienceDetails'];
+  List<Map<String, dynamic>> experiences =
+      (experienceDetails != null && experienceDetails is List)
+          ? List<Map<String, dynamic>>.from(experienceDetails)
+          : [];
 
-    // Sort by most recent or current experience
-    experiences.sort((a, b) {
-      final DateTime aEndDate = a['isCurrentlyWorking'] == true
-          ? DateTime.now()
-          : a['endDate'] is Timestamp
-              ? (a['endDate'] as Timestamp).toDate()
-              : DateTime.tryParse(a['endDate']) ?? DateTime.now();
-      final DateTime bEndDate = b['isCurrentlyWorking'] == true
-          ? DateTime.now()
-          : b['endDate'] is Timestamp
-              ? (b['endDate'] as Timestamp).toDate()
-              : DateTime.tryParse(b['endDate']) ?? DateTime.now();
-      return bEndDate.compareTo(aEndDate);
-    });
+  // Sort experiences
+  experiences.sort((a, b) {
+    DateTime aEndDate = a['isCurrentlyWorking'] == true
+        ? DateTime.now()
+        : a['endDate'] is Timestamp
+            ? (a['endDate'] as Timestamp).toDate()
+            : DateTime.tryParse(a['endDate']) ?? DateTime.now();
+    DateTime bEndDate = b['isCurrentlyWorking'] == true
+        ? DateTime.now()
+        : b['endDate'] is Timestamp
+            ? (b['endDate'] as Timestamp).toDate()
+            : DateTime.tryParse(b['endDate']) ?? DateTime.now();
+    return bEndDate.compareTo(aEndDate);
+  });
 
-    // Limit to top 2 experiences
-    final limitedExperiences = experiences.take(2).toList();
+  final limitedExperiences = experiences.take(2).toList();
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              'Experience',
-              style: Theme.of(context)
-                  .textTheme
-                  .bodyLarge!
-                  .copyWith(fontWeight: FontWeight.bold),
-            ),
-            TextButton.icon(
-              onPressed: () async {
-                final updatedExperiences = await Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => ExperienceOverviewScreen(
-                      userId: widget.userId,
-                      experiences: experiences,
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            'Experience',
+            style: Theme.of(context)
+                .textTheme
+                .bodyLarge!
+                .copyWith(fontWeight: FontWeight.bold),
+          ),
+          TextButton.icon(
+            onPressed: () async {
+              final updatedExperiences = await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ExperienceOverviewScreen(
+                    userId: widget.userId,
+                    experiences: experiences,
+                  ),
+                ),
+              );
+
+              if (updatedExperiences != null) {
+                setState(() {
+                  userData!['experienceDetails'] = updatedExperiences;
+                });
+              }
+            },
+            icon: const Icon(Icons.add),
+            label: const Text('Add'),
+          ),
+        ],
+      ),
+      const SizedBox(height: 16),
+      ...limitedExperiences.map((exp) => _buildExperienceCard(exp, context)),
+      if (experiences.length > 2)
+        Align(
+          alignment: Alignment.centerRight,
+          child: TextButton(
+            onPressed: () async {
+              final updatedExperiences = await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ExperienceOverviewScreen(
+                    userId: widget.userId,
+                    experiences: List<Map<String, dynamic>>.from(
+                      userData?['experienceDetails'] ?? [],
                     ),
                   ),
-                );
+                ),
+              );
 
-                if (updatedExperiences != null) {
-                  setState(() {
-                    userData!['experienceDetails'] = updatedExperiences;
-                  });
-                }
-              },
-              icon: const Icon(Icons.add),
-              label: const Text('Add'),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        ...limitedExperiences.map((exp) {
-          return _buildExperienceCard(exp, context);
-        }),
-        if (experiences.length >
-            2) // Show 'View More' if there are more experiences
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton(
-              onPressed: () async {
-                final updatedExperiences = await Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => ExperienceOverviewScreen(
-                      userId: widget.userId,
-                      experiences: List<Map<String, dynamic>>.from(
-                        userData?['experienceDetails'] ?? [],
-                      ),
-                    ),
-                  ),
-                );
-
-                if (updatedExperiences != null) {
-                  setState(() {
-                    userData!['experienceDetails'] = updatedExperiences;
-                  });
-                }
-              },
-              child: const Text(
-                'View More',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
+              if (updatedExperiences != null) {
+                setState(() {
+                  userData!['experienceDetails'] = updatedExperiences;
+                });
+              }
+            },
+            child: const Text(
+              'View More',
+              style: TextStyle(fontWeight: FontWeight.bold),
             ),
           ),
-      ],
-    );
-  }
+        ),
+    ],
+  );
+}
 
   Widget _buildExperienceCard(Map<String, dynamic> exp, BuildContext context) {
     // Safely parse dates
@@ -507,8 +502,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildEducationSection(BuildContext context) {
-    List<Map<String, dynamic>> educationDetails =
-        List<Map<String, dynamic>>.from(userData?['educationDetails'] ?? []);
+List<Map<String, dynamic>> educationDetails =
+    (userData?['educationDetails'] != null &&
+            userData?['educationDetails'] is List)
+        ? List<Map<String, dynamic>>.from(userData?['educationDetails'])
+        : [];
+
 
     // Limit to top 2 education entries
     final limitedEducation = educationDetails.take(2).toList();
@@ -772,7 +771,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
 Widget _buildAwardsSection(BuildContext context) {
-  List<Map<String, dynamic>> awards = List<Map<String, dynamic>>.from(userData?['awards'] ?? []);
+List<Map<String, dynamic>> awards =
+    (userData?['awards'] != null && userData?['awards'] is List)
+        ? List<Map<String, dynamic>>.from(userData?['awards'])
+        : [];
+
 
   // Limit to top 2 awards for display
   final limitedAwards = awards.take(2).toList();
@@ -935,11 +938,17 @@ Widget _buildAwardCard(Map<String, dynamic> award, BuildContext context) {
 }
 
 Widget _buildLanguageSection(BuildContext context) {
-  final languageDetails = userData!['languageDetails'];
-  final englishProficiency =
-      languageDetails['englishProficiency'] ?? 'Intermediate';
-  final otherLanguages =
-      List<String>.from(languageDetails['otherLanguages'] ?? []);
+  // Ensure languageDetails exists before accessing its fields
+  final languageDetails = userData?['languageDetails'] ?? {};
+
+  final String englishProficiency =
+      languageDetails['englishProficiency']?.toString() ?? 'Intermediate';
+
+  final List<String> otherLanguages =
+      (languageDetails['otherLanguages'] != null &&
+              languageDetails['otherLanguages'] is List)
+          ? List<String>.from(languageDetails['otherLanguages'])
+          : [];
 
   return Column(
     crossAxisAlignment: CrossAxisAlignment.start,
@@ -1010,21 +1019,25 @@ Widget _buildLanguageSection(BuildContext context) {
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
-                children: otherLanguages.map((language) {
-                  return Chip(
-                    label: Text(
-                      language,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            fontWeight: FontWeight.bold,
+                children: otherLanguages.isNotEmpty
+                    ? otherLanguages.map((language) {
+                        return Chip(
+                          label: Text(
+                            language,
+                            style:
+                                Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      fontWeight: FontWeight.bold,
+                                    ),
                           ),
-                    ),
-                    backgroundColor:
-                        Theme.of(context).colorScheme.primaryContainer,
-                    labelStyle: TextStyle(
-                      color: Theme.of(context).colorScheme.onPrimaryContainer,
-                    ),
-                  );
-                }).toList(),
+                          backgroundColor:
+                              Theme.of(context).colorScheme.primaryContainer,
+                          labelStyle: TextStyle(
+                            color:
+                                Theme.of(context).colorScheme.onPrimaryContainer,
+                          ),
+                        );
+                      }).toList()
+                    : [const Text('No additional languages added')],
               ),
             ],
           ),
@@ -1111,8 +1124,9 @@ void _showSnackBar(BuildContext context, String message, {bool isError = false})
 
 
 
- Widget _buildJobPreferencesSection(BuildContext context) {
-  final preferences = userData!['jobPreferences'];
+Widget _buildJobPreferencesSection(BuildContext context) {
+  // Ensure jobPreferences exists before accessing its fields
+  final preferences = userData?['jobPreferences'] ?? {};
 
   return Column(
     crossAxisAlignment: CrossAxisAlignment.start,
@@ -1135,7 +1149,7 @@ void _showSnackBar(BuildContext context, String message, {bool isError = false})
                 MaterialPageRoute(
                   builder: (_) => JobPreferencesOverviewScreen(
                     userId: widget.userId,
-                    currentPreferences: userData!['jobPreferences'],
+                    currentPreferences: preferences,
                   ),
                 ),
               );
@@ -1162,7 +1176,7 @@ void _showSnackBar(BuildContext context, String message, {bool isError = false})
               _buildJobPreferenceRow(
                 context,
                 title: 'Expected Salary',
-                value: '₹${preferences['expectedSalary']}/year',
+                value: '₹${preferences['expectedSalary'] ?? 'N/A'}/year',
                 icon: Icons.currency_rupee_rounded,
                 color: Theme.of(context).colorScheme.primary,
               ),
@@ -1172,7 +1186,10 @@ void _showSnackBar(BuildContext context, String message, {bool isError = false})
               _buildJobPreferenceRow(
                 context,
                 title: 'Preferred Workplaces',
-                value: (preferences['workplaces'] as List).join(', '),
+                value: (preferences['workplaces'] is List &&
+                        (preferences['workplaces'] as List).isNotEmpty)
+                    ? (preferences['workplaces'] as List).join(', ')
+                    : 'Not specified',
                 icon: Icons.location_city_rounded,
                 color: Theme.of(context).colorScheme.secondary,
               ),
@@ -1182,7 +1199,10 @@ void _showSnackBar(BuildContext context, String message, {bool isError = false})
               _buildJobPreferenceRow(
                 context,
                 title: 'Preferred Shifts',
-                value: (preferences['shifts'] as List).join(', '),
+                value: (preferences['shifts'] is List &&
+                        (preferences['shifts'] as List).isNotEmpty)
+                    ? (preferences['shifts'] as List).join(', ')
+                    : 'Not specified',
                 icon: Icons.schedule_rounded,
                 color: Theme.of(context).colorScheme.tertiary,
               ),
@@ -1192,7 +1212,10 @@ void _showSnackBar(BuildContext context, String message, {bool isError = false})
               _buildJobPreferenceRow(
                 context,
                 title: 'Employment Types',
-                value: (preferences['employmentTypes'] as List).join(', '),
+                value: (preferences['employmentTypes'] is List &&
+                        (preferences['employmentTypes'] as List).isNotEmpty)
+                    ? (preferences['employmentTypes'] as List).join(', ')
+                    : 'Not specified',
                 icon: Icons.work_rounded,
                 color: Theme.of(context).colorScheme.error,
               ),

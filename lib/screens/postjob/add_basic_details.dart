@@ -21,9 +21,25 @@ class _AddJobBasicsScreenState extends State<AddJobBasicsScreen> {
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
+  final _additionalRequirementsController = TextEditingController();
+
   bool _isRemote = false;
   LocationModel? _selectedLocation;
   bool _isLoading = false;
+
+  String _selectedGender = "No Gender Preference";
+  String _selectedNationality = "Indian";
+  List<String> _selectedLanguages = [];
+
+  final List<String> _genders = ["No Gender Preference", "Male", "Female", "Other"];
+  final List<String> _nationalities = [
+    "Indian", "American", "British", "Canadian", "Australian", "French",
+    "German", "Chinese", "Japanese", "Spanish", "Italian"
+  ];
+  final List<String> _languages = [
+    "English", "Hindi", "Telugu", "French", "Spanish", "German", 
+    "Tamil", "Kannada", "Malayalam", "Gujarati", "Chinese", "Japanese"
+  ];
 
   @override
   void initState() {
@@ -36,8 +52,13 @@ class _AddJobBasicsScreenState extends State<AddJobBasicsScreen> {
       _titleController.text = widget.jobData?['jobTitle'] ?? '';
       _descriptionController.text = widget.jobData?['companyDescription'] ?? '';
       _isRemote = widget.jobData?['jobLocation'] == 'Remote';
-      
-      // Load location data if available
+      _selectedGender = widget.jobData?['preferredGender'] ?? "No Gender Preference";
+      _selectedNationality = widget.jobData?['preferredNationality'] ?? "Indian";
+      _selectedLanguages = widget.jobData?['preferredLanguages'] != null
+          ? List<String>.from(widget.jobData!['preferredLanguages'])
+          : [];
+      _additionalRequirementsController.text = widget.jobData?['additionalRequirements'] ?? "";
+
       final locationData = widget.jobData?['locationDetails'];
       if (locationData != null) {
         _selectedLocation = LocationModel.fromJson(locationData);
@@ -47,7 +68,7 @@ class _AddJobBasicsScreenState extends State<AddJobBasicsScreen> {
 
   Future<void> saveJobBasics() async {
     if (!_formKey.currentState!.validate()) return;
-    
+
     if (!_isRemote && _selectedLocation == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please select a job location')),
@@ -68,6 +89,10 @@ class _AddJobBasicsScreenState extends State<AddJobBasicsScreen> {
         'jobLocation': _isRemote ? 'Remote' : _selectedLocation.toString(),
         'locationDetails': _isRemote ? null : _selectedLocation?.toJson(),
         'userId': user.uid,
+        'preferredGender': _selectedGender,
+        'preferredNationality': _selectedNationality,
+        'preferredLanguages': _selectedLanguages,
+        'additionalRequirements': _additionalRequirementsController.text,
         'updatedAt': Timestamp.now(),
       };
 
@@ -75,28 +100,15 @@ class _AddJobBasicsScreenState extends State<AddJobBasicsScreen> {
         await FirebaseFirestore.instance
             .collection('jobs')
             .doc(widget.jobId)
-            .set({
-              ...jobData,
-              'lastUpdateDate': Timestamp.now(),
-            }, SetOptions(merge: true));
-        
+            .set(jobData, SetOptions(merge: true));
+
         Navigator.pop(context, true);
       } else {
-        final docRef = await FirebaseFirestore.instance
-            .collection('jobs')
-            .add({
-              ...jobData,
-              'creationDate': Timestamp.now(),
-              'status': 'draft',
-            });
-
+        final docRef = await FirebaseFirestore.instance.collection('jobs').add(jobData);
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => JobDetailsScreen(
-              jobId: docRef.id,
-              jobData: jobData,
-            ),
+            builder: (context) => JobDetailsScreen(jobId: docRef.id, jobData: jobData),
           ),
         );
       }
@@ -112,9 +124,7 @@ class _AddJobBasicsScreenState extends State<AddJobBasicsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.jobId != null ? 'Edit Job Basics' : 'Add Job Basics'),
-      ),
+      appBar: AppBar(title: Text(widget.jobId != null ? 'Edit Job Basics' : 'Add Job Basics')),
       body: Column(
         children: [
           Expanded(
@@ -130,6 +140,8 @@ class _AddJobBasicsScreenState extends State<AddJobBasicsScreen> {
                     _buildCompanyDescriptionSection(),
                     const SizedBox(height: 24),
                     _buildLocationSection(),
+                    const SizedBox(height: 24),
+                    _buildAdditionalDetailsSection(),
                   ],
                 ),
               ),
@@ -142,55 +154,21 @@ class _AddJobBasicsScreenState extends State<AddJobBasicsScreen> {
   }
 
   Widget _buildJobTitleSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Text(
-        //   'Job Title',
-        //   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-        //         fontWeight: FontWeight.bold,
-        //       ),
-        // ),
-        // const SizedBox(height: 8),
-        AnimatedTextField(
-          label: 'Job Title',
-          controller: _titleController,
-          hint: 'e.g., Math Teacher - High School',
-          validator: (value) {
-            if (value?.isEmpty ?? true) {
-              return 'Please enter a job title';
-            }
-            return null;
-          },
-        ),
-      ],
+    return AnimatedTextField(
+      label: 'Job Title',
+      controller: _titleController,
+      hint: 'e.g., Math Teacher - High School',
+      validator: (value) => value?.isEmpty ?? true ? 'Please enter a job title' : null,
     );
   }
 
   Widget _buildCompanyDescriptionSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Text(
-        //   'Company Description',
-        //   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-        //         fontWeight: FontWeight.bold,
-        //       ),
-        // ),
-        // const SizedBox(height: 8),
-        AnimatedTextField(
-          label: 'Company Description',
-          controller: _descriptionController,
-          hint: 'Brief overview of your institution...',
-          maxLines: 3,
-          validator: (value) {
-            if (value?.isEmpty ?? true) {
-              return 'Please provide a company description';
-            }
-            return null;
-          },
-        ),
-      ],
+    return AnimatedTextField(
+      label: 'Company Description',
+      controller: _descriptionController,
+      hint: 'Brief overview of your institution...',
+      maxLines: 3,
+      validator: (value) => value?.isEmpty ?? true ? 'Please provide a description' : null,
     );
   }
 
@@ -198,84 +176,92 @@ class _AddJobBasicsScreenState extends State<AddJobBasicsScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Job Location',
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-        ),
+        Text('Job Location', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 16),
         SwitchListTile(
           title: const Text('This is a remote position'),
           subtitle: const Text('Candidates can work from anywhere'),
           value: _isRemote,
-          onChanged: (value) {
-            setState(() => _isRemote = value);
-          },
+          onChanged: (value) => setState(() => _isRemote = value),
         ),
         if (!_isRemote) ...[
           const SizedBox(height: 16),
           LocationSearchWidget(
-            onLocationSelected: (location) {
-              setState(() => _selectedLocation = location);
-            },
+            onLocationSelected: (location) => setState(() => _selectedLocation = location),
             initialLocation: _selectedLocation,
           ),
           if (_selectedLocation != null)
             SelectedLocationCard(
               location: _selectedLocation!,
-              onDelete: () {
-                setState(() => _selectedLocation = null);
-              },
+              onDelete: () => setState(() => _selectedLocation = null),
             ),
         ],
       ],
     );
   }
 
-  Widget _buildBottomBar() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Theme.of(context).scaffoldBackgroundColor,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 4,
-            offset: const Offset(0, -2),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: OutlinedButton(
-              onPressed: _isLoading ? null : () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: ElevatedButton(
-              onPressed: _isLoading ? null : saveJobBasics,
-              child: _isLoading
-                  ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : Text(widget.jobId != null ? 'Save Changes' : 'Continue'),
-            ),
-          ),
-        ],
-      ),
+  Widget _buildAdditionalDetailsSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildDropdown("Preferred Gender", _selectedGender, _genders, (value) {
+          setState(() => _selectedGender = value!);
+        }),
+        const SizedBox(height: 16),
+        _buildDropdown("Preferred Nationality", _selectedNationality, _nationalities, (value) {
+          setState(() => _selectedNationality = value!);
+        }),
+        const SizedBox(height: 16),
+        _buildMultiSelectChips("Specialized Languages", _languages, _selectedLanguages),
+        const SizedBox(height: 16),
+        AnimatedTextField(
+          label: 'Additional Hiring Preferences',
+          controller: _additionalRequirementsController,
+          hint: 'Specify any other hiring requirements...',
+          maxLines: 3,
+        ),
+      ],
     );
   }
 
-  @override
-  void dispose() {
-    _titleController.dispose();
-    _descriptionController.dispose();
-    super.dispose();
+  Widget _buildDropdown(String label, String value, List<String> items, ValueChanged<String?> onChanged) {
+    return DropdownButtonFormField<String>(
+      value: value,
+      decoration: InputDecoration(labelText: label),
+      items: items.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+      onChanged: onChanged,
+    );
   }
+
+ Widget _buildMultiSelectChips(String label, List<String> options, List<String> selected) {
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(label, style: Theme.of(context).textTheme.titleMedium),
+      const SizedBox(height: 8),
+      Wrap(
+        spacing: 6,
+        children: options.map((lang) {
+          final isSelected = selected.contains(lang);
+          return ChoiceChip(
+            label: Text(lang),
+            selected: isSelected,
+            onSelected: (bool value) {
+              setState(() {
+                if (value) {
+                  selected.add(lang); // Add to selection
+                } else {
+                  selected.remove(lang); // Remove from selection
+                }
+              });
+            },
+          );
+        }).toList(),
+      ),
+    ],
+  );
+}
+
+
+  Widget _buildBottomBar() => ElevatedButton(onPressed: saveJobBasics, child: const Text("Save & Continue"));
 }

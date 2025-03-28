@@ -1,3 +1,4 @@
+import 'package:edibuddy/home/employee_saved_jobs_page.dart';
 import 'package:edibuddy/screens/home/profile_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -62,10 +63,14 @@ class _SplashScreenWithTabsState extends State<SplashScreenWithTabs> {
           .doc(user.uid)
           .get();
 
-      final data = userDoc.data() ?? {};
-      final userType = data['userType'] ?? 'employee';
+  final data = userDoc.data();
+if (data == null) {
+  debugPrint('User document is null.');
+  return;
+}
+final userType = data['userType'] ?? 'employee';
+final isProfileComplete = data['profileComplete'] == true;
 
-      final isProfileComplete = data['profileComplete'] == true;
 
       setState(() {
         _isLoggedIn = true;
@@ -110,9 +115,9 @@ void _initializePages(String? userType) {
   Widget homePage;
 
   if (userType == 'employer') {
-    homePage = const EmployerHomeScreen(); // Navigate to Employer Home Screen
+    homePage = const EmployerHomeScreen();
   } else {
-    homePage = const HomeScreen(); // Default to Employee Home Screen
+    homePage = const HomeScreen();
   }
 
   _pages = [
@@ -128,32 +133,29 @@ void _initializePages(String? userType) {
           ),
     if (_isLoggedIn)
       (_isProfileComplete
-          ? homePage
+          ? const SavedJobsPage()
           : ProfileSetupManager(
-              userId: FirebaseAuth.instance.currentUser!.uid,
+              userId: FirebaseAuth.instance.currentUser?.uid ?? '',
               onProfileComplete: _onProfileComplete,
             )),
     if (_isLoggedIn)
       QuickActionsTab()
     else
-      const Center(
-        child: Text(
-          'Please log in to access your profile.',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-        ),
-      ),
+      const Center(child: Text('Please log in to access your profile.')),
     if (_isLoggedIn)
-     (userType == 'employee')? ProfileScreen(userId: userId ?? ''):EmployerProfileScreen()
-    
+      (userType == 'employee' && userId != null) 
+          ? ProfileScreen(userId: userId!) 
+          : EmployerProfileScreen()
     else
-      const Center(
-        child: Text(
-          'Please log in to access your profile.',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-        ),
-      ),
+      const Center(child: Text('Please log in to access your profile.')),
   ];
+
+  // Ensure _pages is never empty
+  if (_pages.isEmpty) {
+    _pages.add(const Center(child: CircularProgressIndicator()));
+  }
 }
+
 
 void _handleGetStarted() {
   if (!_isLoggedIn) {
@@ -208,54 +210,42 @@ void _onProfileComplete() {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    if (_isLoading) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
-    }
-
-    // Ensure pages are initialized before rendering
-    if (_pages.isEmpty) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
-    }
-
-    return Scaffold(
-      body: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 500),
-        child: _pages[_currentIndex],
-      ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: _onTabTapped,
-        type: BottomNavigationBarType.fixed,
-        backgroundColor: Theme.of(context).colorScheme.surface,
-        selectedItemColor: Theme.of(context).colorScheme.primary,
-        unselectedItemColor:
-            Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
-        showUnselectedLabels: true,
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.search),
-            label: 'Jobs',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.bookmark),
-            label: 'Saved Jobs',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.flash_on),
-            label: 'Quick Actions',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person),
-            label: 'Profile',
-          ),
-        ],
-      ),
+@override
+Widget build(BuildContext context) {
+  if (_isLoading) {
+    return const Scaffold(
+      body: Center(child: CircularProgressIndicator()),
     );
   }
+
+  if (_pages.isEmpty || _currentIndex >= _pages.length) {
+    debugPrint('Error: _pages is empty or _currentIndex is out of bounds.');
+    return const Scaffold(
+      body: Center(child: Text("Something went wrong. Please restart the app.")),
+    );
+  }
+
+  return Scaffold(
+    body: AnimatedSwitcher(
+      duration: const Duration(milliseconds: 500),
+      child: _pages[_currentIndex],
+    ),
+    bottomNavigationBar: BottomNavigationBar(
+      currentIndex: _currentIndex,
+      onTap: _onTabTapped,
+      type: BottomNavigationBarType.fixed,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      selectedItemColor: Theme.of(context).colorScheme.primary,
+      unselectedItemColor: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+      showUnselectedLabels: true,
+      items: const [
+        BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+        BottomNavigationBarItem(icon: Icon(Icons.bookmark), label: 'Saved Jobs'),
+        BottomNavigationBarItem(icon: Icon(Icons.flash_on), label: 'Quick Actions'),
+        BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
+      ],
+    ),
+  );
+}
+
 }

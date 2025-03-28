@@ -2,6 +2,7 @@ import 'package:edibuddy/screens/postjob/set_preferences_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../widgets/rich_text_editor.dart';
+import 'package:flutter_quill/flutter_quill.dart' as quill;
 
 class JobDescriptionScreen extends StatefulWidget {
   final String jobId;
@@ -19,7 +20,7 @@ class _JobDescriptionScreenState extends State<JobDescriptionScreen> {
   final _descriptionController = TextEditingController();
   final _qualificationsController = TextEditingController();
   final List<String> _requiredSkills = [];
-
+quill.QuillController _quillController = quill.QuillController.basic();
   @override
   void initState() {
     super.initState();
@@ -74,6 +75,15 @@ class _JobDescriptionScreenState extends State<JobDescriptionScreen> {
       });
     }
   }
+
+  final List<String> _allSkills = [
+    "B.Ed",
+    "M.Ed",
+    "PhD",
+    "EdD",
+    "Diploma",
+    "Others"
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -149,16 +159,29 @@ class _JobDescriptionScreenState extends State<JobDescriptionScreen> {
                             },
                           );
                         }),
-                        ActionChip(
-                          label: const Text('+ Add Skill'),
-                          onPressed: () {
-                            showDialog(
-                              context: context,
-                              builder: (context) => _AddSkillDialog(
-                                onAdd: _addSkill,
-                              ),
+                        Wrap(
+                          spacing: 3,
+                          runSpacing: 1,
+                          children: _allSkills.map((skill) {
+                            final isSelected = _requiredSkills.contains(skill);
+                            return FilterChip(
+                              label: Text(skill),
+                              selected: isSelected,
+                              onSelected: (selected) {
+                                setState(() {
+                                  if (selected) {
+                                    _requiredSkills.add(skill);
+                                  } else {
+                                    _requiredSkills.remove(skill);
+                                  }
+                                });
+                              },
+                              selectedColor:
+                                  theme.colorScheme.primary.withValues(),
+                              backgroundColor: theme.colorScheme.surfaceContainerHighest,
+                              checkmarkColor: theme.colorScheme.primary,
                             );
-                          },
+                          }).toList(),
                         ),
                       ],
                     ),
@@ -214,51 +237,3 @@ class _JobDescriptionScreenState extends State<JobDescriptionScreen> {
   }
 }
 
-class _AddSkillDialog extends StatefulWidget {
-  final Function(String) onAdd;
-
-  const _AddSkillDialog({
-    Key? key,
-    required this.onAdd,
-  }) : super(key: key);
-
-  @override
-  State<_AddSkillDialog> createState() => _AddSkillDialogState();
-}
-
-class _AddSkillDialogState extends State<_AddSkillDialog> {
-  final _controller = TextEditingController();
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Add Required Skill'),
-      content: TextField(
-        controller: _controller,
-        decoration: const InputDecoration(
-          hintText: 'Enter skill name',
-        ),
-        autofocus: true,
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
-        ),
-        ElevatedButton(
-          onPressed: () {
-            widget.onAdd(_controller.text);
-            Navigator.pop(context);
-          },
-          child: const Text('Add'),
-        ),
-      ],
-    );
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-}

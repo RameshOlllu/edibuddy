@@ -402,6 +402,9 @@ class _ReviewAndConfirmScreenState extends State<ReviewAndConfirmScreen> {
                         Expanded(
                           child: ElevatedButton(
                             onPressed: _isLoading ? null : _postJob,
+                            style: ElevatedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                            ),
                             child: _isLoading
                                 ? const SizedBox(
                                     height: 20,
@@ -411,9 +414,6 @@ class _ReviewAndConfirmScreenState extends State<ReviewAndConfirmScreen> {
                                     ),
                                   )
                                 : const Text('Confirm & Post'),
-                            style: ElevatedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                            ),
                           ),
                         ),
                       ],

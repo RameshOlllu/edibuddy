@@ -29,11 +29,36 @@ android {
         versionName flutter.versionName
     }
 
-    buildTypes {
-        release {
-            signingConfig signingConfigs.debug
+
+signingConfigs {
+    release {
+        def keystorePropertiesFile = rootProject.file("key.properties")
+        if (keystorePropertiesFile.exists()) {
+            def keystoreProperties = new Properties()
+            keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+
+            storeFile file(keystoreProperties['storeFile'])
+            storePassword keystoreProperties['storePassword']
+            keyAlias keystoreProperties['keyAlias']
+            keyPassword keystoreProperties['keyPassword']
+        } else {
+            throw new GradleException("Missing key.properties file for signing.")
         }
     }
+}
+
+    buildTypes {
+        release {
+            signingConfig signingConfigs.release
+            minifyEnabled true
+            shrinkResources true
+        }
+    }
+}
+
+dependencies {
+    implementation platform("com.google.firebase:firebase-bom:33.7.0") // Firebase BoM
+    implementation "com.google.firebase:firebase-auth" // Firebase Authentication
 }
 
 flutter {
