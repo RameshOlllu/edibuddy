@@ -375,9 +375,9 @@ Future<void> _checkAndVerifyMobileNumber(String mobileNumber) async {
           ? () {
               final mobileNumber =
                   _formKey.currentState?.fields['mobileNumber']?.value;
-              if (mobileNumber != null) {
-                _checkAndVerifyMobileNumber(mobileNumber);
-              }
+              // if (mobileNumber != null) {
+              //   _checkAndVerifyMobileNumber(mobileNumber);
+              // }
             }
           : null,
       child: const Text('Verify'),

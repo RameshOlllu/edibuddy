@@ -1,0 +1,2 @@
+/Users/cherry/Projects/edibuddy/android/app/.cxx/RelWithDebInfo/b1g1l6e5/x86/CMakeFiles/edit_cache.dir
+/Users/cherry/Projects/edibuddy/android/app/.cxx/RelWithDebInfo/b1g1l6e5/x86/CMakeFiles/rebuild_cache.dir

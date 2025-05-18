@@ -144,7 +144,7 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
   }
 
   Widget _buildJobHeader() {
-    final status = _jobData?['status'] ?? 'Unknown';
+    final status = _jobData?['status'] ?? 'Draft';
     final statusColor = _getStatusColor(status);
 
     return Container(
@@ -201,7 +201,11 @@ class _JobManagementScreenState extends State<JobManagementScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Posted on ${DateFormat('MMM d, yyyy').format((_jobData?['postedAt'] as Timestamp).toDate())}',
+            'Posted on ${DateFormat('MMM d, yyyy').format(
+              _jobData?['postedAt'] != null
+                ? (_jobData!['postedAt'] as Timestamp).toDate()
+                : DateTime.now()
+            )}',
             style: Theme.of(context).textTheme.bodySmall,
           ),
         ],

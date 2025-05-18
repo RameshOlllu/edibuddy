@@ -135,7 +135,7 @@ class _ResumeUploadScreenState extends State<ResumeUploadScreen> {
   }
 
 void _completeProfile() async {
-  if (uploadedFileUrl == null) {
+  if (uploadedFileUrl == null && false) {
     if (mounted) {
       _showSnackBar("Please upload your resume first!", isError: true);
     }
@@ -159,7 +159,8 @@ void _completeProfile() async {
     final stars = _calculateStars(userData);
     final hearts = _calculateHearts(userData);
 
-    await _resumeService.updateUserProfileStatus(widget.userId, stars >= 3, stars, hearts);
+    // await _resumeService.updateUserProfileStatus(widget.userId, stars >= 3, stars, hearts);
+    await _resumeService.updateUserProfileStatus(widget.userId, true, stars, hearts);
 
     if (mounted) {
       Navigator.pushReplacement(
@@ -693,7 +694,8 @@ int _calculateHearts(Map<String, dynamic> userData) {
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: FilledButton(
-            onPressed: uploadedFileUrl != null ? _completeProfile : null,
+            // onPressed: uploadedFileUrl != null ? _completeProfile : null,
+          onPressed: _completeProfile,
             style: FilledButton.styleFrom(
               minimumSize: const Size(double.infinity, 56),
               shape: RoundedRectangleBorder(

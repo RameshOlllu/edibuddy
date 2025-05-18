@@ -7,36 +7,12 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:332353888565:android:1da2faa2624fd7bba7ac7c",
+        "mobilesdk_app_id": "1:332353888565:android:24224b311ab6c5aea7ac7c",
         "android_client_info": {
-          "package_name": "com.edu.edibuddy"
+          "package_name": "com.org.edibuddy"
         }
       },
       "oauth_client": [
-        {
-          "client_id": "332353888565-6u6thhh0qq5oen4dtolgm8tl00nq1blk.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.edu.edibuddy",
-            "certificate_hash": "504b56cec95bf8a9aabddd02d7634b8b09c43f84"
-          }
-        },
-        {
-          "client_id": "332353888565-cv6jfkg1efttcilusjguartlgeb83dqk.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.edu.edibuddy",
-            "certificate_hash": "30147ce37b81d4bdc5846eb30fc4820a1cbf4d2e"
-          }
-        },
-        {
-          "client_id": "332353888565-va2kt7fv7ebsq53qqk4d7jbj9c57lu2d.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.edu.edibuddy",
-            "certificate_hash": "4310ac577cae6f553c864bffb1813ad762fc75b6"
-          }
-        },
         {
           "client_id": "332353888565-22hkguu89iojiiadiantop755sdthsau.apps.googleusercontent.com",
           "client_type": 3

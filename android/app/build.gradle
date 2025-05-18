@@ -8,7 +8,7 @@ plugins {
 apply plugin: 'com.google.gms.google-services'
 
 android {
-    namespace = "com.edu.edibuddy"
+    namespace = "com.org.edibuddy"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -22,7 +22,7 @@ android {
     }
 
     defaultConfig {
-        applicationId "com.edu.edibuddy"
+        applicationId "com.org.edibuddy"
         minSdkVersion 23
         targetSdkVersion flutter.targetSdkVersion
         versionCode flutter.versionCode
